@@ -24,7 +24,7 @@ Installation
 ```
 
 - Install it from the admin → Modules → Extract Ocr -> install
-
+- Extract OCR automaticaly allow the upload of XML files 
 
 Using the PDF TOC Plugin
 ---------------------------
