@@ -38,9 +38,11 @@ Using the PDF TOC Plugin
 Optional plugins
 ----------------
 
-- [Universal Viewer](https://github.com/Daniel-KM/Omeka-S-module-UniversalViewer) : Module for Omeka S that adds the IIIF specifications in order to act like an IIPImage server, and the UniversalViewer, a unified online player for any file. It can display books, images, maps, audio, movies, pdf, 3D views, and anything else as long as the appropriate extensions are installed. 
+- [Universal Viewer](https://github.com/Daniel-KM/Omeka-S-module-UniversalViewer) : Module for Omeka S that adds the IIIF specifications in order to act like an IIPImage server, and the UniversalViewer, a unified online player for any file. It can display books, images, maps, audio, movies, pdf, 3D views, and anything else as long as the appropriate extensions are installed.
 
-- [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch).
+- [IIIF-Server](https://github.com/bubdxm/Omeka-S-module-IiifServer) : Module for Omeka S that adds the IIIF specifications to serve any images and medias. 
+
+- [IIIF-Search](https://github.com/bubdxm/Omeka-S-module-IiifSearch) :  Module for Omeka S that adds IIIF Search Api for  fulltext searching on universal viewer.
 
 
 Troubleshooting
