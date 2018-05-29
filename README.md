@@ -26,7 +26,7 @@ Installation
 - Install it from the admin → Modules → Extract Ocr -> install
 - Extract OCR automaticaly allow the upload of XML files 
 
-Using the PDF TOC Plugin
+Using the Extract OCR Plugin
 ---------------------------
 
 - Create an item
@@ -48,7 +48,7 @@ Optional plugins
 Troubleshooting
 ---------------
 
-See online [Extract OCR issues](https://github.com/symac/Plugin-ExtractOcr/issues).
+See online [Extract OCR issues](https://github.com/bubdxm/Omeka-S-module-ExtractOcr/issues).
 
 
 License
