@@ -30,8 +30,8 @@ Using the Extract OCR Plugin
 ---------------------------
 
 - Create an item
-- Add PDF file(s) to this item
-- Save Item
+- Save this Item
+- After save, add PDF file(s) to this item
 - To locate extracted OCR xml file, select the item to which the PDF is attached. Normally, you should see an XML file attached to the record with the same filename than the pdf file. 
 
 
