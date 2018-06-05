@@ -84,29 +84,15 @@ class Module extends AbstractModule
     public function attachListeners(SharedEventManagerInterface $sharedEventManager)
     {
         $sharedEventManager->attach(
-            \Omeka\Api\Adapter\MediaAdapter::class,
-            'api.hydrate.post',
-            function (\Zend\EventManager\Event $event) {
+            \Omeka\Api\Adapter\ItemAdapter::class,
+            'api.create.post',
+            [$this, 'extractOcr']
+        );
 
-                list($basePath, $baseUri ) = $this->getPathConfig();
-                $entity = $event->getParam('entity');
-                if (! $entity->getId()) {
-                    $fileExt = $entity->getExtension();
-                    if (in_array($fileExt, array('pdf', 'PDF'))) {
-
-                        $fileName = basename($entity->getSource(), ".pdf").".xml";
-                        $job = $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
-                            [
-                                'itemId' => $entity->getItem()->getId(),
-                                'filename' => $fileName,
-                                'storageId' => $entity->getStorageId(),
-                                'extension' => $entity->getExtension(),
-                                'basePath' => $basePath ,
-                                'baseUri' => $baseUri,
-                            ]);
-                    }
-                }
-            }
+        $sharedEventManager->attach(
+            \Omeka\Api\Adapter\ItemAdapter::class,
+            'api.update.post',
+            [$this, 'extractOcr']
         );
     }
 
@@ -126,5 +112,32 @@ class Module extends AbstractModule
         }
 
         return [ $basePath . '/original', $baseUri . '/original' ];
+    }
+
+    /**
+     * @brief launch extractOcr's job
+     * @param Event $event
+     */
+    function extractOcr(\Zend\EventManager\Event $event) {
+        list($basePath, $baseUri ) = $this->getPathConfig();
+
+        $response = $event->getParams()['response'];
+        $item = $response->getContent();
+
+        foreach ($item->getMedia() as $media ) {
+            $fileExt = $media->getExtension();
+            if (in_array($fileExt, array('pdf', 'PDF'))) {
+                $fileName = basename($media->getSource(), ".pdf").".xml";
+                $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
+                    [
+                        'itemId' => $media->getItem()->getId(),
+                        'filename' => $fileName,
+                        'storageId' => $media->getStorageId(),
+                        'extension' => $media->getExtension(),
+                        'basePath' => $basePath ,
+                        'baseUri' => $baseUri,
+                    ]);
+            }
+        }
     }
 }
