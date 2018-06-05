@@ -5,7 +5,7 @@ Extract OCR (plugin upgraded for Omeka S)
 Summary
 -----------
 
-Omeka plugin to extract OCR text in XML from PDF files, allowing fulltext searching within Universal Viewer plugin for omeka S ( need [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch) ).
+Omeka's module to extract OCR text in XML from PDF files, allowing fulltext searching within Universal Viewer plugin for omeka S ( need [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch) ).
 
 Installation
 ------------
@@ -26,7 +26,7 @@ Installation
 - Install it from the admin → Modules → Extract Ocr -> install
 - Extract OCR automaticaly allow the upload of XML files 
 
-Using the Extract OCR Plugin
+Using the Extract OCR module
 ---------------------------
 
 - Create an item
@@ -35,7 +35,7 @@ Using the Extract OCR Plugin
 - To locate extracted OCR xml file, select the item to which the PDF is attached. Normally, you should see an XML file attached to the record with the same filename than the pdf file. 
 
 
-Optional plugins
+Optional modules
 ----------------
 
 - [Universal Viewer](https://github.com/Daniel-KM/Omeka-S-module-UniversalViewer) : Module for Omeka S that adds the IIIF specifications in order to act like an IIPImage server, and the UniversalViewer, a unified online player for any file. It can display books, images, maps, audio, movies, pdf, 3D views, and anything else as long as the appropriate extensions are installed.
@@ -54,7 +54,7 @@ See online [Extract OCR issues](https://github.com/bubdxm/Omeka-S-module-Extract
 License
 -------
 
-This plugin is published under [GNU/GPL].
+This module is published under [GNU/GPL].
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
