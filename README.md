@@ -9,7 +9,7 @@ Omeka's module to extract OCR text in XML from PDF files, allowing fulltext sear
 
 Installation
 ------------
-- This plugin needs pdftohtml command-line tool on your server
+- This module needs pdftohtml command-line tool on your server
 
 ```
     sudo apt-get install poppler-utils
