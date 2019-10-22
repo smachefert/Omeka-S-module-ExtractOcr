@@ -130,9 +130,9 @@ class Module extends AbstractModule
             if (in_array($fileExt, array('pdf', 'PDF'))) {
                 $logger->info(sprintf("Extracting OCR for %s", $media->source()));
                 $countPdf++;
-                $targetFilename = sprintf("%s_%s.%s", basename($media->source(), ".pdf"), $media->item()->id(), "xml");
+                $targetFilename = sprintf("%s.%s", basename($media->source(), ".pdf"), "xml");
 
-                $searchXmlFile = $this->getMediaFromFilename($targetFilename);
+                $searchXmlFile = $this->getMediaFromFilename($media->item()->id(), $targetFilename);
 
                 $toProcess = false;
                 if ($params['override'] == 1) {
@@ -223,9 +223,9 @@ class Module extends AbstractModule
         foreach ($item->getMedia() as $media ) {
             $fileExt = $media->getExtension();
             if (in_array($fileExt, array('pdf', 'PDF'))) {
-                $targetFilename = sprintf("%s_%s.%s", basename($media->getSource(), ".pdf"), $media->getItem()->getId(), "xml");
+                $targetFilename = sprintf("%s.%s", basename($media->getSource(), ".pdf"), "xml");
 
-                if (!$this->getMediaFromFilename($targetFilename)) {
+                if (!$this->getMediaFromFilename($item->getId(), $targetFilename)) {
                     $this->startExtractOcrJob(
                         $media->getItem()->getId(),
                         $targetFilename ,
@@ -251,11 +251,11 @@ class Module extends AbstractModule
             ]);
     }
 
-    private function getMediaFromFilename($filename) {
+    private function getMediaFromFilename($item_id, $filename) {
         $services = $this->getServiceLocator();
         $api = $services->get('Omeka\ApiManager');
 
-        $searchXmlFile = $api->search('media', ['o:source' => $filename])->getContent();
+        $searchXmlFile = $api->search('media', ['item_id' => $item_id, 'o:source' => $filename])->getContent();
         if (sizeof($searchXmlFile) == 0) {
             return false;
         }
