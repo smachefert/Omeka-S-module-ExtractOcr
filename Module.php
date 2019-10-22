@@ -130,17 +130,18 @@ class Module extends AbstractModule
             if (in_array($fileExt, array('pdf', 'PDF'))) {
                 $logger->info(sprintf("Extracting OCR for %s", $media->source()));
                 $countPdf++;
-                $targetFilename = sprintf("%s_%s.%s", $media->item()->id(), basename($media->source(), ".pdf"), "xml");
-                $searchXmlFile = $api->search('media', ['o:source' => $targetFilename])->getContent();
+                $targetFilename = sprintf("%s_%s.%s", basename($media->source(), ".pdf"), $media->item()->id(), "xml");
+
+                $searchXmlFile = $this->getMediaFromFilename($targetFilename);
 
                 $toProcess = false;
                 if ($params['override'] == 1) {
                     $toProcess = true;
-                    if (sizeof( $searchXmlFile ) >= 1) {
+                    if ($searchXmlFile) {
                         $logger->info("XML already exists and override set to true, we are going to delete");
-                        $api->delete('media', $searchXmlFile[0]->id());
+                        $api->delete('media', $searchXmlFile->id());
                     }
-                } elseif (sizeof($searchXmlFile ) == 0) {
+                } elseif ( !$searchXmlFile ) {
                     $toProcess = true;
                     $logger->info("XML file does not exist, we are going to create it");
                 } else {
@@ -149,16 +150,14 @@ class Module extends AbstractModule
 
                 if ($toProcess === true) {
                     $countProcessing++;
-
-                    $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
-                        [
-                            'itemId' => $media->item()->id(),
-                            'filename' => $targetFilename,
-                            'storageId' => $media->storageId(),
-                            'extension' => $media->extension(),
-                            'basePath' => $basePath ,
-                            'baseUri' => $baseUri,
-                        ]);
+                    $this->startExtractOcrJob(
+                        $media->item()->id(),
+                        $targetFilename,
+                        $media->storageId(),
+                        $media->extension(),
+                        $basePath,
+                        $baseUri
+                    );
                 }
             }
         }
@@ -224,17 +223,42 @@ class Module extends AbstractModule
         foreach ($item->getMedia() as $media ) {
             $fileExt = $media->getExtension();
             if (in_array($fileExt, array('pdf', 'PDF'))) {
-                $fileName = basename($media->getSource(), ".pdf").".xml";
-                $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
-                    [
-                        'itemId' => $media->getItem()->getId(),
-                        'filename' => $fileName,
-                        'storageId' => $media->getStorageId(),
-                        'extension' => $media->getExtension(),
-                        'basePath' => $basePath ,
-                        'baseUri' => $baseUri,
-                    ]);
+                $targetFilename = sprintf("%s_%s.%s", basename($media->getSource(), ".pdf"), $media->getItem()->getId(), "xml");
+
+                if (!$this->getMediaFromFilename($targetFilename)) {
+                    $this->startExtractOcrJob(
+                        $media->getItem()->getId(),
+                        $targetFilename ,
+                        $media->getStorageId(),
+                        $media->getExtension(),
+                        $basePath,
+                        $baseUri
+                    );
+                }
             }
         }
+    }
+
+    private function startExtractOcrJob($itemId, $filename, $storageId, $extension, $basePath, $baseUri) {
+        $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
+            [
+                'itemId' => $itemId,
+                'filename' => $filename,
+                'storageId' => $storageId,
+                'extension' => $extension,
+                'basePath' => $basePath ,
+                'baseUri' => $baseUri,
+            ]);
+    }
+
+    private function getMediaFromFilename($filename) {
+        $services = $this->getServiceLocator();
+        $api = $services->get('Omeka\ApiManager');
+
+        $searchXmlFile = $api->search('media', ['o:source' => $filename])->getContent();
+        if (sizeof($searchXmlFile) == 0) {
+            return false;
+        }
+        return $searchXmlFile[0];
     }
 }
