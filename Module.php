@@ -1,23 +1,18 @@
 <?php 
   
 namespace ExtractOcr;
-  
+
+use ExtractOcr\Form\ConfigForm;
+use ExtractOcr\Job\DerivativeImages;
+use ExtractOcr\Job\ExtractOcr;
 use Omeka\Module\AbstractModule;
-use Omeka\Module\Manager as ModuleManager;
 use Omeka\Module\Exception\ModuleCannotInstallException;
-use Zend\View\Model\ViewModel;
-use Zend\Mvc\Controller\AbstractController;
-use Zend\Form\Fieldset;
+use Omeka\Stdlib\Message;
+use Omeka\View\Helper\Api;
 use Zend\EventManager\Event;
 use Zend\EventManager\SharedEventManagerInterface;
-use Zend\Mvc\MvcEvent;
+use Zend\Mvc\Controller\AbstractController;
 use Zend\ServiceManager\ServiceLocatorInterface;
-use Zend\Form\Element\Textarea;
-use Zend\Form\Element\Text;
-use Zend\Debug\Debug;
-use Omeka\Mvc\Controller\Plugin\Logger;
-//use Zend\Log\Logger;
-use Zend\Log\Writer;
 use Zend\View\Renderer\PhpRenderer;
 
 class Module extends AbstractModule
@@ -75,7 +70,108 @@ class Module extends AbstractModule
     {
         return include __DIR__ . '/config/module.config.php';
     }
-        
+
+
+    public function getConfigForm(PhpRenderer $renderer)
+    {
+        $services = $this->getServiceLocator();
+        $form = $services->get('FormElementManager')->get(ConfigForm::class);
+        $form->init();
+        $html = '<p>'
+            . sprintf(
+                $renderer->translate('XML files will be rebuilt for all PDF files of your Omeka install'), // @translate
+                '<code>', '</code>'
+            )
+            . '</p>';
+        $html .= $renderer->formCollection($form);
+        return $html;
+    }
+
+    public function handleConfigForm(AbstractController $controller)
+    {
+        list($basePath, $baseUri ) = $this->getPathConfig();
+
+
+
+        $services = $this->getServiceLocator();
+        $form = $services->get('FormElementManager')->get(ConfigForm::class);
+        $logger = $services->get('Omeka\Logger');
+        $logger->info("ExtractOCR in bulk mode");
+
+        $params = $controller->getRequest()->getPost();
+
+        $form->init();
+        $form->setData($params);
+        if (!$form->isValid()) {
+            $controller->messenger()->addErrors($form->getMessages());
+            return false;
+        }
+
+        $params = $form->getData();
+
+        if (empty($params['process']) || $params['process'] !== $controller->translate('Process')) {
+            $message = 'No job launched.'; // @translate
+            $controller->messenger()->addWarning($message);
+            return;
+        }
+
+        unset($params['csrf']);
+        unset($params['process']);
+
+        // We are going to send the item to be processed
+        $api = $services->get('Omeka\ApiManager');
+        $response = $api->search('media', ['media_type' => "application/pdf"])->getContent();
+
+        $countPdf = 0;
+        $countProcessing = 0;
+        foreach ($response as $media) {
+            $fileExt = $media->extension();
+
+            if (in_array($fileExt, array('pdf', 'PDF'))) {
+                $logger->info(sprintf("Extracting OCR for %s", $media->source()));
+                $countPdf++;
+                $targetFilename = sprintf("%s_%s.%s", $media->item()->id(), basename($media->source(), ".pdf"), "xml");
+                $searchXmlFile = $api->search('media', ['o:source' => $targetFilename])->getContent();
+
+                $toProcess = false;
+                if ($params['override'] == 1) {
+                    $toProcess = true;
+                    if (sizeof( $searchXmlFile ) >= 1) {
+                        $logger->info("XML already exists and override set to true, we are going to delete");
+                        $api->delete('media', $searchXmlFile[0]->id());
+                    }
+                } elseif (sizeof($searchXmlFile ) == 0) {
+                    $toProcess = true;
+                    $logger->info("XML file does not exist, we are going to create it");
+                } else {
+                    $logger->info("XML file already exists, override not set, skipping");
+                }
+
+                if ($toProcess === true) {
+                    $countProcessing++;
+
+                    $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
+                        [
+                            'itemId' => $media->item()->id(),
+                            'filename' => $targetFilename,
+                            'storageId' => $media->storageId(),
+                            'extension' => $media->extension(),
+                            'basePath' => $basePath ,
+                            'baseUri' => $baseUri,
+                        ]);
+                }
+            }
+        }
+
+        $message = new Message(
+            sprintf('Creating Extract OCR files in background (%s PDF, %s XML will be created)', // @translate,
+            $countPdf,
+            $countProcessing)
+            );
+        $controller->messenger()->addSuccess($message);
+
+    }
+
     /**
      * Attach listeners to events.
      *

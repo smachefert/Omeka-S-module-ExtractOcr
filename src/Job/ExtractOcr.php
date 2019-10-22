@@ -2,6 +2,7 @@
 namespace ExtractOcr\Job;
 
 use Omeka\Job\AbstractJob;
+use Omeka\Stdlib\Message;
 
 class ExtractOcr extends AbstractJob
 {
@@ -17,11 +18,18 @@ class ExtractOcr extends AbstractJob
         $this->basePath   = $this->getArg('basePath');
         $this->baseUri    = $this->getArg('baseUri');
 
+        $services = $this->getServiceLocator();
         $apiManager = $this->getServiceLocator()->get('Omeka\ApiManager');
         $itemId     = $this->getArg('itemId');
         $filename   = $this->getArg('filename');
         $storageId  = $this->getArg('storageId');
         $extension  = $this->getArg('extension');
+
+        $logger = $services->get('Omeka\Logger');
+        $logger->info(new Message(
+            'Extracting OCR from %s',
+            $itemId
+        ));
 
         $filePath = sprintf('%s/%s',$this->basePath , $storageId . '.' . $extension);
 
