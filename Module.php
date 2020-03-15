@@ -34,22 +34,23 @@ class Module extends AbstractModule
             );
         }
 
-        $config = $services->get('Config')['extractocr']['config'];
         $settings = $services->get('Omeka\Settings');
+        $config = require __DIR__ . '/config/module.config.php';
+        $config = $config['extractocr']['config'];
+        foreach ($config as $name => $value) {
+            $settings->set($name, $value);
+        }
         $this->allowXML($services->get('Omeka\Settings'));
-        $settings->set('extractocr_content_store', $config['extractocr_content_store']);
-        $settings->set('extractocr_content_property', $config['extractocr_content_property']);
-        $settings->set('extractocr_content_language', $config['extractocr_content_language']);
-        $settings->set('extractocr_create_empty_xml', $config['extractocr_create_empty_xml']);
     }
 
     public function uninstall(ServiceLocatorInterface $services)
     {
         $settings = $services->get('Omeka\Settings');
-        $settings->delete('extractocr_content_store');
-        $settings->delete('extractocr_content_property');
-        $settings->delete('extractocr_content_language');
-        $settings->delete('extractocr_create_empty_xml');
+        $config = require __DIR__ . '/config/module.config.php';
+        $config = $config['extractocr']['config'];
+        foreach (array_keys($config) as $name) {
+            $settings->delete($name);
+        }
     }
 
     /**
@@ -102,12 +103,13 @@ class Module extends AbstractModule
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
         $form->init();
 
-        $form->setData([
-            'extractocr_content_store' => $settings->get('extractocr_content_store'),
-            'extractocr_content_property' => $settings->get('extractocr_content_property'),
-            'extractocr_content_language' => $settings->get('extractocr_content_language'),
-            'extractocr_create_empty_xml' => $settings->get('extractocr_create_empty_xml'),
-        ]);
+        $config = require __DIR__ . '/config/module.config.php';
+        $config = $config['extractocr']['config'];
+        $data = [];
+        foreach ($config as $name => $value) {
+            $data[$name] = $settings->get($name, $value);
+        }
+        $form->setData($data);
 
         $html = '<p>'
             . sprintf(
