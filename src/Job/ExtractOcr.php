@@ -304,6 +304,7 @@ class ExtractOcr extends AbstractJob
             'ingest_url' => $xmlStoredFile['url'],
             'file_index' => 0,
             'values_json' => '{}',
+            'o:lang' => $this->language,
         ];
 
         if ($this->property && strlen($content)) {
