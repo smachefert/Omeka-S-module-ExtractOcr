@@ -41,6 +41,16 @@ class ConfigForm extends Form
                     'data-placeholder' => 'Select a media property…', // @translate
                 ],
             ])
+            ->add([
+                'name' => 'extractocr_content_language',
+                'type' => Element\Text::class,
+                'options' => [
+                    'label' => 'Language code of the content', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'extractocr_content_language',
+                ],
+            ])
 
             ->add([
                 'name' => 'extractocr_extractor',

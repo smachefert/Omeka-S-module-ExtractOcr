@@ -40,6 +40,11 @@ class ExtractOcr extends AbstractJob
     protected $property;
 
     /**
+     * @var string
+     */
+    protected $language;
+
+    /**
      * @brief Attach attracted ocr data from pdf with item
      */
     public function perform()
@@ -63,6 +68,7 @@ class ExtractOcr extends AbstractJob
                 $prop= $this->api->search('properties', ['term' => $this->property])->getContent();
                 if ($prop) {
                     $this->property = reset($prop);
+                    $this->language = $settings->get('extractocr_content_language');
                 }
             }
         }
@@ -242,6 +248,7 @@ class ExtractOcr extends AbstractJob
                     'type' => 'literal',
                     'property_id' => $this->property->id(),
                     '@value' => $text,
+                    '@language' => $this->language,
                 ];
             }
         }

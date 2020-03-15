@@ -39,6 +39,7 @@ class Module extends AbstractModule
         $this->allowXML($services->get('Omeka\Settings'));
         $settings->set('extractocr_content_store', $config['extractocr_content_store']);
         $settings->set('extractocr_content_property', $config['extractocr_content_property']);
+        $settings->set('extractocr_content_language', $config['extractocr_content_language']);
     }
 
     public function uninstall(ServiceLocatorInterface $services)
@@ -46,6 +47,7 @@ class Module extends AbstractModule
         $settings = $services->get('Omeka\Settings');
         $settings->delete('extractocr_content_store');
         $settings->delete('extractocr_content_property');
+        $settings->delete('extractocr_content_language');
     }
 
     /**
@@ -101,6 +103,7 @@ class Module extends AbstractModule
         $form->setData([
             'extractocr_content_store' => $settings->get('extractocr_content_store'),
             'extractocr_content_property' => $settings->get('extractocr_content_property'),
+            'extractocr_content_language' => $settings->get('extractocr_content_language'),
         ]);
 
         $html = '<p>'
