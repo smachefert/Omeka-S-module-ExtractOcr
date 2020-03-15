@@ -1,6 +1,7 @@
 <?php
 namespace ExtractOcr\Job;
 
+use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\Job\AbstractJob;
 use Omeka\Stdlib\Message;
 
@@ -35,10 +36,9 @@ class ExtractOcr extends AbstractJob
 
         $this->pdfToText($filePath, $storageId);
 
-        $fileIndex = 0;
         $data = [
             'o:ingester' => 'url',
-            'file_index' => $fileIndex,
+            'file_index' => 0,
             'o:item' => [
                 'o:id' => $itemId,
             ],
@@ -46,7 +46,12 @@ class ExtractOcr extends AbstractJob
             'o:source' => $filename,
         ];
 
-        $apiManager->create('media', $data);
+        $media = $apiManager->create('media', $data)->getContent();
+
+        // Save the xml file as the last media to avoid thumbnails issues.
+        if ($media) {
+            $this->reorderMedias($media);
+        }
     }
 
     /**
@@ -64,5 +69,43 @@ class ExtractOcr extends AbstractJob
         $cmd = "pdftohtml -i -c -hidden -xml $path $xmlFilePath";
 
         shell_exec($cmd);
+    }
+
+    /**
+     * Move a media at the last position of the item.
+     *
+     * @see \CSVImport\Job\Import::reorderMedias()
+     *
+     * @todo Move this process in the core.
+     *
+     * @param MediaRepresentation $media
+     */
+    protected function reorderMedias(MediaRepresentation $media)
+    {
+        // Note: the position is not available in representation.
+
+        $entityManager = $this->getServiceLocator()->get('Omeka\EntityManager');
+        $mediaRepository = $entityManager->getRepository(\Omeka\Entity\Media::class);
+        $medias = $mediaRepository->findBy(['item' => $media->item()->id()]);
+        if (count($medias) <= 1) {
+            return;
+        }
+
+        $lastMedia = null;
+        $lastMediaId = (int) $media->id();
+        $key = 0;
+        foreach ($medias as $itemMedia) {
+            $itemMediaId = (int) $itemMedia->getId();
+            if ($itemMediaId !== $lastMediaId) {
+                $itemMedia->setPosition(++$key);
+            } else {
+                $lastMedia = $itemMedia;
+            }
+        }
+        $lastMedia->setPosition(++$key);
+
+        // Flush one time to use a transaction and to avoid a duplicate issue
+        // with the index item_id/position.
+        $entityManager->flush();
     }
 }
