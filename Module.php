@@ -74,6 +74,7 @@ class Module extends AbstractModule
         $xmlMediaTypes = [
             'application/xml',
             'text/xml',
+            'application/vnd.pdf2xml+xml',
         ];
         $mediaTypeWhitelist = array_unique(array_merge($mediaTypeWhitelist, $xmlMediaTypes));
         $settings->set('media_type_whitelist', $mediaTypeWhitelist);
@@ -136,7 +137,7 @@ class Module extends AbstractModule
                 $logger->info(sprintf('Extracting OCR for %s', $media->source()));
                 ++$countPdf;
                 $targetFilename = sprintf('%s.%s', basename($media->source(), '.pdf'), 'xml');
-                $searchXmlFile = $this->getMediaFromFilename($media->item()->id(), $targetFilename);
+                $searchXmlFile = $this->getMediaFromFilename($media->item()->id(), $targetFilename, 'xml');
 
                 $toProcess = false;
                 if ($params['override'] == 1) {
@@ -191,7 +192,7 @@ class Module extends AbstractModule
             if (strtolower($fileExt) === 'pdf') {
                 $targetFilename = sprintf('%s.%s', basename($media->getSource(), '.pdf'), 'xml');
 
-                if (!$this->getMediaFromFilename($item->getId(), $targetFilename)) {
+                if (!$this->getMediaFromFilename($item->getId(), $targetFilename, 'xml')) {
                     $this->startExtractOcrJob(
                         $media->getItem()->getId(),
                         $targetFilename,
@@ -218,16 +219,21 @@ class Module extends AbstractModule
             ]);
     }
 
-    private function getMediaFromFilename($item_id, $filename)
+    private function getMediaFromFilename($itemId, $filename, $extension)
     {
         $services = $this->getServiceLocator();
         $api = $services->get('Omeka\ApiManager');
 
-        $searchXmlFile = $api->search('media', ['item_id' => $item_id, 'o:source' => $filename])->getContent();
-        if (sizeof($searchXmlFile) == 0) {
-            return false;
+        // The api search() doesn't allow to search a source, so we use read().
+        try {
+            return $api->read('media', [
+                'item' => $itemId,
+                'source' => $filename,
+                'extension' => $extension,
+            ])->getContent();
+        } catch (\Omeka\Api\Exception\NotFoundException $e) {
         }
-        return $searchXmlFile[0];
+        return null;
     }
 
     // TODO add parameter for xml storage path.
