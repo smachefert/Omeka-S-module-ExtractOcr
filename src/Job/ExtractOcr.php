@@ -318,6 +318,12 @@ class ExtractOcr extends AbstractJob
             }
             if ($this->store['media_xml']) {
                 $data[$this->property->term()][] = $this->contentValue;
+                $data['dcterms:isFormatOf'][] = [
+                    'type' => 'resource:media',
+                    // dcterms:isFormatOf.
+                    'property_id' => 37,
+                    'value_resource_id' => $pdfMedia->id(),
+                ];
             }
         }
 
