@@ -23,14 +23,20 @@ class Module extends AbstractModule
 
     public function install(ServiceLocatorInterface $services)
     {
-        $logger = $services->get('Omeka\Logger');
         $t = $services->get('MvcTranslator');
+
         // Don't install if the pdftotext command doesn't exist.
         // See: http://stackoverflow.com/questions/592620/check-if-a-program-exists-from-a-bash-script
         if ((int) shell_exec('hash pdftotext 2>&- || echo 1')) {
-            $logger->info('pdftotext not found');
             throw new ModuleCannotInstallException(
                 $t->translate('The pdftotext command-line utility is not installed. pdftotext must be installed to install this plugin.') //@translate
+            );
+        }
+
+        $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+        if (!$this->checkDestinationDir($basePath . '/temp')) {
+            throw new ModuleCannotInstallException(
+                $t->translate('The temporary directory "files/temp" is not writeable. Fix rights or create it manually.') //@translate
             );
         }
 
@@ -150,7 +156,7 @@ class Module extends AbstractModule
         }
 
         $params['override'] = (bool) $params['override'];
-        list($params['basePath'], $params['baseUri']) = $this->getPathConfig();
+        $params['baseUri'] = $this->getBaseUri();
 
         $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
         $job = $dispatcher->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
@@ -206,11 +212,15 @@ class Module extends AbstractModule
         $params = [
             'itemId' => $item->getId(),
             'override' => false,
+            'baseUri' => $this->getBaseUri(),
             // FIXME Currently impossible to save text with event api.update.post;
             'manual' => true,
         ];
-        list($params['basePath'], $params['baseUri']) = $this->getPathConfig();
         $this->getServiceLocator()->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
+
+        $messenger = new \Omeka\Mvc\Controller\Plugin\Messenger;
+        $message = new Message('Extracting OCR in background.'); // @translate
+        $messenger->addNotice($message);
     }
 
     /**
@@ -242,25 +252,36 @@ class Module extends AbstractModule
 
     /**
      * @todo Add parameter for xml storage path.
-     * @todo Use a factory.
      */
-    protected function getPathConfig()
+    protected function getBaseUri()
     {
         $config = $this->serviceLocator->get('Config');
-
-        $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-
         $baseUri = $config['file_store']['local']['base_uri'];
-        if (null === $baseUri) {
-            $helpers = $this->serviceLocator->get('ViewHelperManager');
-            $serverUrlHelper = $helpers->get('ServerUrl');
-            $basePathHelper = $helpers->get('BasePath');
+        if (!$baseUri) {
+            $helpers = $this->getServiceLocator()->get('ViewHelperManager');
+            $serverUrlHelper = $helpers->get('serverUrl');
+            $basePathHelper = $helpers->get('basePath');
             $baseUri = $serverUrlHelper($basePathHelper('files'));
         }
+        return $baseUri;
+    }
 
-        return [
-            $basePath . '/original',
-            $baseUri . '/original',
-        ];
+    /**
+     * Check or create the destination folder.
+     *
+     * @param string $dirPath
+     * @return bool
+     */
+    protected function checkDestinationDir($dirPath)
+    {
+        if (!file_exists($dirPath)) {
+            if (!is_writeable($this->basePath)) {
+                return false;
+            }
+            @mkdir($dirPath, 0755, true);
+        } elseif (!is_dir($dirPath) || !is_writeable($dirPath)) {
+            return false;
+        }
+        return true;
     }
 }

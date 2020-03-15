@@ -2,6 +2,7 @@
 namespace ExtractOcr\Job;
 
 use Omeka\Api\Representation\MediaRepresentation;
+use Omeka\File\TempFile;
 use Omeka\Job\AbstractJob;
 use Omeka\Stdlib\Message;
 
@@ -23,6 +24,16 @@ class ExtractOcr extends AbstractJob
      * @var \Omeka\Api\Manager
      */
     protected $api;
+
+    /**
+     * @var \Omeka\File\TempFileFactory
+     */
+    protected $tempFileFactory;
+
+    /**
+     * @var \Omeka\Stdlib\Cli
+     */
+    protected $cli;
 
     /**
      * @var string
@@ -68,12 +79,20 @@ class ExtractOcr extends AbstractJob
      */
     public function perform()
     {
-        $this->basePath = $this->getArg('basePath');
-        $this->baseUri = $this->getArg('baseUri');
-
         $services = $this->getServiceLocator();
         $this->logger = $services->get('Omeka\Logger');
         $this->api = $services->get('Omeka\ApiManager');
+        $this->tempFileFactory = $services->get('Omeka\File\TempFileFactory');
+        $this->cli = $services->get('Omeka\Cli');
+        $this->baseUri = $this->getArg('baseUri');
+        $this->basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+        if (!$this->checkDestinationDir($this->basePath . '/temp')) {
+            $this->logger->err(new Message(
+                'The temporary directory "files/temp" is not writeable. Fix rights or create it manually.' // @translate
+            ));
+            return;
+        }
+
         $settings = $services->get('Omeka\Settings');
         $override = $this->getArg('override');
         $itemId = $this->getArg('itemId');
@@ -179,7 +198,7 @@ class ExtractOcr extends AbstractJob
             }
 
             $this->contentValue = null;
-            $xmlMedia = $this->extractOcrForMedia($pdfMedia, $targetFilename);
+            $xmlMedia = $this->extractOcrForMedia($pdfMedia);
             if ($xmlMedia) {
                 $this->logger->info(sprintf('Media #%1$d created for xml file.', // @translate
                     $xmlMedia->id()));
@@ -237,43 +256,54 @@ class ExtractOcr extends AbstractJob
 
     /**
      * @param MediaRepresentation $pdfMedia
-     * @param string $filename
      * @return MediaRepresentation|null The xml media.
      */
-    protected function extractOcrForMedia(MediaRepresentation $pdfMedia, $filename)
+    protected function extractOcrForMedia(MediaRepresentation $pdfMedia)
     {
-        $filepath = $this->basePath . '/' . $pdfMedia->filename();
-        if (!file_exists($filepath)) {
+        $pdfFilepath = $this->basePath . '/original/' . $pdfMedia->filename();
+        if (!file_exists($pdfFilepath)) {
             $this->logger->err(sprintf('Missing pdf file (media #%1$d).', $pdfMedia->id())); // @translate
             return null;
         }
 
         // Do the conversion of the pdf to xml.
-        $this->pdfToText($filepath, $pdfMedia->storageId());
-
-        $xmlFilepath = $this->basePath . '/' . $filename;
-        if (!file_exists($xmlFilepath)) {
+        $xmlTempFile = $this->pdfToText($pdfFilepath);
+        if (empty($xmlTempFile)) {
             $this->logger->err(sprintf('Xml file was not created for media #%1$s.', $pdfMedia->id())); // @translate
             return null;
         }
 
-        $content = file_get_contents($xmlFilepath);
+        $content = file_get_contents($xmlTempFile->getTempPath());
         $content = trim(strip_tags($content));
         if (!$this->createEmptyXml && !strlen($content)) {
+            $xmlTempFile->delete();
             $this->logger->notice(new Message('The xml for pdf #%1$d has no text content and is not created.', // @translate
                 $pdfMedia->id()
             ));
             return null;
         }
 
+        // It's not possible to save a local file via the "upload" ingester. So
+        // the ingester "url" can be used, but it requires the file to be in the
+        // omeka files directory. Else, use module FileSideload or inject sql.
+        $xmlStoredFile = $this->makeTempFileDownloadable($xmlTempFile, '/extractocr');
+        if (!$xmlStoredFile) {
+            $xmlTempFile->delete();
+            return null;
+        }
+
+        // This data is important to get the matching pdf and xml.
+        $source = basename($pdfMedia->source(), '.pdf') . '.xml';
+
         $data = [
             'o:ingester' => 'url',
-            'file_index' => 0,
             'o:item' => [
                 'o:id' => $pdfMedia->item()->id(),
             ],
-            'ingest_url' => $this->baseUri . '/' . $pdfMedia->storageId() . '.xml',
-            'o:source' => $filename,
+            'o:source' => $source,
+            'ingest_url' => $xmlStoredFile['url'],
+            'file_index' => 0,
+            'values_json' => '{}',
         ];
 
         if ($this->property && strlen($content)) {
@@ -292,17 +322,20 @@ class ExtractOcr extends AbstractJob
         }
 
         try {
-            $media = $this->api->create('media', $data)->getContent();
+            $media = $this->api->create('media', $data, [])->getContent();
         } catch (\Omeka\Api\Exception\ExceptionInterface $e) {
             // Generally a bad or missing pdf file.
-            $this->logger->err($e->getMessage());
+            $this->logger->err($e->getMessage() ?: $e);
             return null;
         } catch (\Exception $e) {
             $this->logger->err($e);
             return null;
+        } finally {
+            $xmlTempFile->delete();
+            @unlink($xmlStoredFile['filepath']);
         }
 
-        // Save the xml file as the last media to avoid thumbnails issues.
+        // Move the xml file as the last media to avoid thumbnails issues.
         if ($media) {
             $this->reorderMedias($media);
             return $media;
@@ -314,20 +347,28 @@ class ExtractOcr extends AbstractJob
     /**
      * Extract and store OCR Data from pdf in .xml file
      *
-     * FIXME Use Omeka CLI service and temporary file.
-     *
-     * @param string $filepath File's path of the pdf
-     * @param string $filename Storage id on Omeka after import (no extension)
+     * @param string $pdfFilepath
+     * @return \Omeka\File\TempFile|null
      */
-    protected function pdfToText($filepath, $filename)
+    protected function pdfToText($pdfFilepath)
     {
-        $filepath = escapeshellarg($filepath);
-        $xmlFilepath = $this->basePath . '/' . $filename;
+        $tempFile = $this->tempFileFactory->build();
+        $xmlFilepath = $tempFile->getTempPath() . '.xml';
+        @unlink($tempFile->getTempPath());
+        $tempFile->setTempPath($xmlFilepath);
+
+        $pdfFilepath = escapeshellarg($pdfFilepath);
         $xmlFilepath = escapeshellarg($xmlFilepath);
 
-        $cmd = "pdftohtml -i -c -hidden -xml $filepath $xmlFilepath";
+        $command = "pdftohtml -i -c -hidden -xml $pdfFilepath $xmlFilepath";
 
-        shell_exec($cmd);
+        $result = $this->cli->execute($command);
+        if ($result === false) {
+            $tempFile->delete();
+            return null;
+        }
+
+        return $tempFile;
     }
 
     /**
@@ -366,5 +407,71 @@ class ExtractOcr extends AbstractJob
         // Flush one time to use a transaction and to avoid a duplicate issue
         // with the index item_id/position.
         $entityManager->flush();
+    }
+
+    /**
+     * Save a temp file into the files/temp directory.
+     *
+     * @see \Ebook\Mvc\Controller\Plugin\Ebook::saveFile()
+     *
+     * @param TempFile $source
+     * @param string $base
+     * @return array|null
+     */
+    protected function makeTempFileDownloadable(TempFile $tempFile, $base = '')
+    {
+        $baseDestination = '/temp';
+        $destinationDir = $this->basePath . $baseDestination . $base;
+        if (!$this->checkDestinationDir($destinationDir)) {
+            return null;
+        }
+
+        $source = $tempFile->getTempPath();
+
+        // Find a unique meaningful filename instead of a hash.
+        $name = date('Ymd_His') . '_pdf2xml';
+        $extension = 'xml';
+        $i = 0;
+        do {
+            $filename = $name . ($i ? '-' . $i : '') . '.' . $extension;
+            $destination = $destinationDir . '/' . $filename;
+            if (!file_exists($destination)) {
+                $result = @copy($source, $destination);
+                if (!$result) {
+                    $this->logger->err(new Message('File cannot be saved in temporary directory "%1$s" (temp file: "%2$s")', // @translate
+                        $destination, $source));
+                    return null;
+                }
+                $storageId = $base . $name . ($i ? '-' . $i : '');
+                break;
+            }
+        } while (++$i);
+
+        return [
+            'filepath' => $destination,
+            'filename' => $filename,
+            'url' => $this->baseUri . $baseDestination . $base . '/' . $filename,
+            'url_file' => $baseDestination . $base . '/' . $filename,
+            'storageId' => $storageId,
+        ];
+    }
+
+    /**
+     * Check or create the destination folder.
+     *
+     * @param string $dirPath
+     * @return bool
+     */
+    protected function checkDestinationDir($dirPath)
+    {
+        if (!file_exists($dirPath)) {
+            if (!is_writeable($this->basePath)) {
+                return false;
+            }
+            @mkdir($dirPath, 0755, true);
+        } elseif (!is_dir($dirPath) || !is_writeable($dirPath)) {
+            return false;
+        }
+        return true;
     }
 }
