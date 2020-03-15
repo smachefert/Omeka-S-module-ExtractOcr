@@ -205,6 +205,8 @@ class Module extends AbstractModule
         $params = [
             'itemId' => $item->getId(),
             'override' => false,
+            // FIXME Currently impossible to save text with event api.update.post;
+            'manual' => true,
         ];
         list($params['basePath'], $params['baseUri']) = $this->getPathConfig();
         $this->getServiceLocator()->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);

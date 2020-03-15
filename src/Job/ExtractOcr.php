@@ -77,7 +77,7 @@ class ExtractOcr extends AbstractJob
         // TODO Manage the case where there are multiple pdf by item (rare).
 
         $this->store = $settings->get('extractocr_content_store');
-        if (!in_array($this->store, ['item', 'media'])) {
+        if (!in_array($this->store, ['item', 'media']) || $this->getArg('manual')) {
             $this->store = false;
         }
         if ($this->store) {
