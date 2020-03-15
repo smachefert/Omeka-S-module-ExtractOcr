@@ -5,6 +5,7 @@ use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\File\TempFile;
 use Omeka\Job\AbstractJob;
 use Omeka\Stdlib\Message;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
 class ExtractOcr extends AbstractJob
 {
@@ -202,8 +203,8 @@ class ExtractOcr extends AbstractJob
             if ($xmlMedia) {
                 $this->logger->info(sprintf('Media #%1$d created for xml file.', // @translate
                     $xmlMedia->id()));
-                if ($this->store['item'] && $this->contentValue) {
-                    $this->api->update('items', $item->id(), [$this->property->term() => [$this->contentValue]], [], ['isPartial' => true, 'collectionAction' => 'append']);
+                if ($this->store['item']) {
+                    $this->storeContentInProperty($item);
                 }
                 ++$countProcessed;
             } else {
@@ -315,7 +316,7 @@ class ExtractOcr extends AbstractJob
                 '@language' => $this->language,
             ];
             if ($this->store['media_pdf']) {
-                $this->api->update('media', $pdfMedia->id(), [$this->property->term() => [$this->contentValue]], [], ['isPartial' => true, 'collectionAction' => 'append']);
+                $this->storeContentInProperty($pdfMedia);
             }
             if ($this->store['media_xml']) {
                 $data[$this->property->term()][] = $this->contentValue;
@@ -376,6 +377,34 @@ class ExtractOcr extends AbstractJob
         }
 
         return $tempFile;
+    }
+
+    /**
+     * Append the content text to a resource.
+     *
+     * A check is done to avoid to duplicate content.
+     *
+     * @param AbstractResourceEntityRepresentation $resource
+     */
+    protected function storeContentInProperty(AbstractResourceEntityRepresentation $resource)
+    {
+        if (empty($this->contentValue)) {
+            return;
+        }
+
+        foreach($resource->value($this->property->term(), ['all' => true, 'default' => []]) as $v) {
+            if ($v->value() === $this->contentValue['@value']) {
+                return;
+            }
+        }
+
+        $this->api->update(
+            $resource->resourceName(),
+            $resource->id(),
+            [$this->property->term() => [$this->contentValue]],
+            [],
+            ['isPartial' => true, 'collectionAction' => 'append']
+        );
     }
 
     /**
