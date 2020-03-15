@@ -87,6 +87,21 @@ class ExtractOcr extends AbstractJob
         $countSkipped = 0;
         $countProcessed = 0;
         foreach ($pdfMediaIds as $pdfMediaId) {
+            if ($this->shouldStop()) {
+                if ($override) {
+                    $this->logger->warn(new Message(
+                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed.', // @translate
+                        $countProcessed, $totalToProcess
+                    ));
+                } else {
+                    $this->logger->warn(new Message(
+                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed and %1$d skipped.', // @translate
+                        $countProcessed, $totalToProcess, $countSkipped
+                    ));
+                }
+                return;
+            }
+
             $pdfMedia = $this->api->read('media', ['id' => $pdfMediaId])->getContent();
             $item = $pdfMedia->item();
 
