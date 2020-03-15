@@ -6,6 +6,7 @@ use ExtractOcr\Form\ConfigForm;
 use ExtractOcr\Job\ExtractOcr;
 use Omeka\Module\AbstractModule;
 use Omeka\Module\Exception\ModuleCannotInstallException;
+use Omeka\Settings\SettingsInterface;
 use Omeka\Stdlib\Message;
 use Zend\EventManager\Event;
 use Zend\EventManager\SharedEventManagerInterface;
@@ -15,59 +16,67 @@ use Zend\View\Renderer\PhpRenderer;
 
 class Module extends AbstractModule
 {
-    public function install(ServiceLocatorInterface $serviceLocator)
+    public function getConfig()
     {
-        $logger = $serviceLocator->get('Omeka\Logger');
-        $t = $serviceLocator->get('MvcTranslator');
+        return include __DIR__ . '/config/module.config.php';
+    }
+
+    public function install(ServiceLocatorInterface $services)
+    {
+        $logger = $services->get('Omeka\Logger');
+        $t = $services->get('MvcTranslator');
         // Don't install if the pdftotext command doesn't exist.
         // See: http://stackoverflow.com/questions/592620/check-if-a-program-exists-from-a-bash-script
         if ((int) shell_exec('hash pdftotext 2>&- || echo 1')) {
             $logger->info('pdftotext not found');
-            throw new ModuleCannotInstallException($t->translate('The pdftotext command-line utility '
-                . 'is not installed. pdftotext must be installed to install this plugin.'));
+            throw new ModuleCannotInstallException(
+                $t->translate('The pdftotext command-line utility is not installed. pdftotext must be installed to install this plugin.') //@translate
+            );
         }
 
-        $this->allowXML($serviceLocator->get('Omeka\Settings'));
+        $this->allowXML($services->get('Omeka\Settings'));
     }
 
     /**
-     * @brief allow XML's extension and media type
-     *        in omeka's settings
-     * @param Omeka's SettingsInterface
+     * Attach listeners to events.
+     *
+     * @param SharedEventManagerInterface $sharedEventManager
      */
-    protected function allowXML($settings)
+    public function attachListeners(SharedEventManagerInterface $sharedEventManager)
     {
-        $extension_whitelist = $settings->get('extension_whitelist');
-        $media_type_whitelist = $settings->get('media_type_whitelist');
+        $sharedEventManager->attach(
+            \Omeka\Api\Adapter\ItemAdapter::class,
+            'api.create.post',
+            [$this, 'extractOcr']
+        );
+        $sharedEventManager->attach(
+            \Omeka\Api\Adapter\ItemAdapter::class,
+            'api.update.post',
+            [$this, 'extractOcr']
+        );
+    }
 
-        $xml_extension = [
+    /**
+     * Allow XML's extension and media type in omeka's settings
+     *
+     * @param SettingsInterface
+     */
+    protected function allowXML(SettingsInterface $settings)
+    {
+        $extensionWhitelist = $settings->get('extension_whitelist', []);
+        $xmlExtensions = [
             'xml',
         ];
+        $extensionWhitelist = array_unique(array_merge($extensionWhitelist, $xmlExtensions));
+        $settings->set('extension_whitelist', $extensionWhitelist);
 
-        $xml_media_type = [
+        $mediaTypeWhitelist = $settings->get('media_type_whitelist');
+        $xmlMediaTypes = [
             'application/xml',
             'text/xml',
         ];
-
-        foreach ($xml_extension as $extension) {
-            if (!in_array($extension, $extension_whitelist)) {
-                $extension_whitelist[] = $extension;
-            }
-        }
-
-        foreach ($xml_media_type as $media_type) {
-            if (!in_array($media_type, $media_type_whitelist)) {
-                $media_type_whitelist[] = $media_type;
-            }
-        }
-
-        $settings->set('extension_whitelist', $extension_whitelist);
-        $settings->set('media_type_whitelist', $media_type_whitelist);
-    }
-
-    public function getConfig()
-    {
-        return include __DIR__ . '/config/module.config.php';
+        $mediaTypeWhitelist = array_unique(array_merge($mediaTypeWhitelist, $xmlMediaTypes));
+        $settings->set('media_type_whitelist', $mediaTypeWhitelist);
     }
 
     public function getConfigForm(PhpRenderer $renderer)
@@ -77,7 +86,7 @@ class Module extends AbstractModule
         $form->init();
         $html = '<p>'
             . sprintf(
-                $renderer->translate('XML files will be rebuilt for all PDF files of your Omeka install'), // @translate
+                $renderer->translate('XML files will be rebuilt for all PDF files of your Omeka install.'), // @translate
                 '<code>', '</code>'
             )
             . '</p>';
@@ -127,21 +136,20 @@ class Module extends AbstractModule
                 $logger->info(sprintf('Extracting OCR for %s', $media->source()));
                 ++$countPdf;
                 $targetFilename = sprintf('%s.%s', basename($media->source(), '.pdf'), 'xml');
-
                 $searchXmlFile = $this->getMediaFromFilename($media->item()->id(), $targetFilename);
 
                 $toProcess = false;
                 if ($params['override'] == 1) {
                     $toProcess = true;
                     if ($searchXmlFile) {
-                        $logger->info('XML already exists and override set to true, we are going to delete');
+                        $logger->info('XML already exists and override set to true, we are going to delete'); // @translate
                         $api->delete('media', $searchXmlFile->id());
                     }
                 } elseif (!$searchXmlFile) {
                     $toProcess = true;
-                    $logger->info('XML file does not exist, we are going to create it');
+                    $logger->info('XML file does not exist, we are going to create it'); // @translate
                 } else {
-                    $logger->info('XML file already exists, override not set, skipping');
+                    $logger->info('XML file already exists, override not set, skipping'); // @translate
                 }
 
                 if ($toProcess === true) {
@@ -167,45 +175,8 @@ class Module extends AbstractModule
     }
 
     /**
-     * Attach listeners to events.
+     * Launch extractOcr's job
      *
-     * @param SharedEventManagerInterface $sharedEventManager
-     */
-    public function attachListeners(SharedEventManagerInterface $sharedEventManager)
-    {
-        $sharedEventManager->attach(
-            \Omeka\Api\Adapter\ItemAdapter::class,
-            'api.create.post',
-            [$this, 'extractOcr']
-        );
-
-        $sharedEventManager->attach(
-            \Omeka\Api\Adapter\ItemAdapter::class,
-            'api.update.post',
-            [$this, 'extractOcr']
-        );
-    }
-
-    // TODO add parameter for xml storage path.
-    protected function getPathConfig()
-    {
-        $config = $this->serviceLocator->get('Config');
-
-        $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-
-        $baseUri = $config['file_store']['local']['base_uri'];
-        if (null === $baseUri) {
-            $helpers = $this->serviceLocator->get('ViewHelperManager');
-            $serverUrlHelper = $helpers->get('ServerUrl');
-            $basePathHelper = $helpers->get('BasePath');
-            $baseUri = $serverUrlHelper($basePathHelper('files'));
-        }
-
-        return [ $basePath . '/original', $baseUri . '/original' ];
-    }
-
-    /**
-     * @brief launch extractOcr's job
      * @param Event $event
      */
     public function extractOcr(\Zend\EventManager\Event $event)
@@ -257,5 +228,23 @@ class Module extends AbstractModule
             return false;
         }
         return $searchXmlFile[0];
+    }
+
+    // TODO add parameter for xml storage path.
+    protected function getPathConfig()
+    {
+        $config = $this->serviceLocator->get('Config');
+
+        $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+
+        $baseUri = $config['file_store']['local']['base_uri'];
+        if (null === $baseUri) {
+            $helpers = $this->serviceLocator->get('ViewHelperManager');
+            $serverUrlHelper = $helpers->get('ServerUrl');
+            $basePathHelper = $helpers->get('BasePath');
+            $baseUri = $serverUrlHelper($basePathHelper('files'));
+        }
+
+        return [$basePath . '/original', $baseUri . '/original'];
     }
 }

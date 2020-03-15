@@ -27,7 +27,7 @@ class ExtractOcr extends AbstractJob
 
         $logger = $services->get('Omeka\Logger');
         $logger->info(new Message(
-            'Extracting OCR from %s',
+            'Extracting OCR from item #%s.', //  @translate
             $itemId
         ));
 
@@ -50,19 +50,18 @@ class ExtractOcr extends AbstractJob
     }
 
     /**
-     * @brief extract and store OCR Data from pdf in .xml file
-     * @param $path
-     *          pdf file's path
-     * @param $filename
-     *          pdf filename on omeka after import
+     * Extract and store OCR Data from pdf in .xml file
+     *
+     * @param $path pdf file's path
+     * @param $filename pdf filename on omeka after import
      */
-    public function pdfToText($path, $filename)
+    protected function pdfToText($path, $filename)
     {
         $path = escapeshellarg($path);
-        $xml_file_path = sprintf('%s/%s', $this->basePath, $filename);
-        $xml_file_path = escapeshellarg($xml_file_path);
+        $xmlFilePath = sprintf('%s/%s', $this->basePath, $filename);
+        $xmlFilePath = escapeshellarg($xmlFilePath);
 
-        $cmd = "pdftohtml -i -c -hidden -xml $path $xml_file_path";
+        $cmd = "pdftohtml -i -c -hidden -xml $path $xmlFilePath";
 
         shell_exec($cmd);
     }
