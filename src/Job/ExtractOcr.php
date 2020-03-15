@@ -35,6 +35,11 @@ class ExtractOcr extends AbstractJob
     protected $baseUri;
 
     /**
+     * @var \Omeka\Api\Representation\PropertyRepresentation|null
+     */
+    protected $property;
+
+    /**
      * @brief Attach attracted ocr data from pdf with item
      */
     public function perform()
@@ -45,10 +50,28 @@ class ExtractOcr extends AbstractJob
         $services = $this->getServiceLocator();
         $this->logger = $services->get('Omeka\Logger');
         $this->api = $services->get('Omeka\ApiManager');
+        $settings = $services->get('Omeka\Settings');
         $override = $this->getArg('override');
         $itemId = $this->getArg('itemId');
 
         // TODO Manage the case where there are multiple pdf by item (rare).
+
+        $store = $settings->get('extractocr_content_store');
+        if ($store) {
+            $prop = $settings->get('extractocr_content_property');
+            if ($prop) {
+                $prop= $this->api->search('properties', ['term' => $this->property])->getContent();
+                if ($prop) {
+                    $this->property = reset($prop);
+                }
+            }
+        }
+
+        if ($store && !$this->property) {
+            $this->logger->warn(new Message(
+                'The option to store text is set, but no property is defined.' // @translate
+            ));
+        }
 
         // TODO The media type can be non-standard for pdf (text/pdf…) on old servers.
         $query = [
@@ -210,6 +233,18 @@ class ExtractOcr extends AbstractJob
             'ingest_url' => $this->baseUri . '/' . $pdfMedia->storageId() . '.xml',
             'o:source' => $filename,
         ];
+
+        if ($this->property) {
+            $text = file_get_contents($xmlFilepath);
+            $text = trim(strip_tags($text));
+            if (strlen($text)) {
+                $data[$this->property->term()][] = [
+                    'type' => 'literal',
+                    'property_id' => $this->property->id(),
+                    '@value' => $text,
+                ];
+            }
+        }
 
         try {
             $media = $this->api->create('media', $data)->getContent();

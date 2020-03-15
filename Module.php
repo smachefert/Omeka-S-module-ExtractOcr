@@ -34,7 +34,18 @@ class Module extends AbstractModule
             );
         }
 
+        $config = $services->get('Config')['extractocr']['config'];
+        $settings = $services->get('Omeka\Settings');
         $this->allowXML($services->get('Omeka\Settings'));
+        $settings->set('extractocr_content_store', $config['extractocr_content_store']);
+        $settings->set('extractocr_content_property', $config['extractocr_content_property']);
+    }
+
+    public function uninstall(ServiceLocatorInterface $services)
+    {
+        $settings = $services->get('Omeka\Settings');
+        $settings->delete('extractocr_content_store');
+        $settings->delete('extractocr_content_property');
     }
 
     /**
@@ -83,8 +94,15 @@ class Module extends AbstractModule
     public function getConfigForm(PhpRenderer $renderer)
     {
         $services = $this->getServiceLocator();
+        $settings = $services->get('Omeka\Settings');
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
         $form->init();
+
+        $form->setData([
+            'extractocr_content_store' => $settings->get('extractocr_content_store'),
+            'extractocr_content_property' => $settings->get('extractocr_content_property'),
+        ]);
+
         $html = '<p>'
             . sprintf(
                 $renderer->translate('XML files will be rebuilt for all PDF files of your Omeka install.'), // @translate
@@ -111,14 +129,19 @@ class Module extends AbstractModule
 
         $params = $form->getData();
 
+        $settings = $services->get('Omeka\Settings');
+        $settings->set('extractocr_content_store', $params['extractocr_content_store']);
+        $settings->set('extractocr_content_property', $params['extractocr_content_property']);
+
+        // Form is already validated in parent.
+        $params = (array) $controller->getRequest()->getPost();
+        $params = array_intersect_key($params, ['override' => null, 'process' => null]);
         if (empty($params['process']) || $params['process'] !== $controller->translate('Process')) {
             $message = 'No job launched.'; // @translate
             $controller->messenger()->addWarning($message);
             return true;
         }
 
-        unset($params['csrf']);
-        unset($params['process']);
         $params['override'] = (bool) $params['override'];
         list($params['basePath'], $params['baseUri']) = $this->getPathConfig();
 
