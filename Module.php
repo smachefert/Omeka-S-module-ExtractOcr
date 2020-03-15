@@ -97,12 +97,8 @@ class Module extends AbstractModule
 
     public function handleConfigForm(AbstractController $controller)
     {
-        list($basePath, $baseUri) = $this->getPathConfig();
-
         $services = $this->getServiceLocator();
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
-        $logger = $services->get('Omeka\Logger');
-        $logger->info('ExtractOCR in bulk mode');
 
         $params = $controller->getRequest()->getPost();
 
@@ -118,108 +114,84 @@ class Module extends AbstractModule
         if (empty($params['process']) || $params['process'] !== $controller->translate('Process')) {
             $message = 'No job launched.'; // @translate
             $controller->messenger()->addWarning($message);
-            return;
+            return true;
         }
 
         unset($params['csrf']);
         unset($params['process']);
+        $params['override'] = (bool) $params['override'];
+        list($params['basePath'], $params['baseUri']) = $this->getPathConfig();
 
-        // We are going to send the item to be processed
-        $api = $services->get('Omeka\ApiManager');
-        /** @var \Omeka\Api\Representation\MediaRepresentation[] $medias */
-        $medias = $api->search('media', ['media_type' => 'application/pdf'])->getContent();
+        $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
+        $job = $dispatcher->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
 
-        $countPdf = 0;
-        $countProcessing = 0;
-        foreach ($medias as $media) {
-            $fileExt = $media->extension();
-            if (strtolower($fileExt) === 'pdf') {
-                $logger->info(sprintf('Extracting OCR for %s', $media->source()));
-                ++$countPdf;
-                $targetFilename = sprintf('%s.%s', basename($media->source(), '.pdf'), 'xml');
-                $searchXmlFile = $this->getMediaFromFilename($media->item()->id(), $targetFilename, 'xml');
-
-                $toProcess = false;
-                if ($params['override'] == 1) {
-                    $toProcess = true;
-                    if ($searchXmlFile) {
-                        $logger->info('XML already exists and override set to true, we are going to delete'); // @translate
-                        $api->delete('media', $searchXmlFile->id());
-                    }
-                } elseif (!$searchXmlFile) {
-                    $toProcess = true;
-                    $logger->info('XML file does not exist, we are going to create it'); // @translate
-                } else {
-                    $logger->info('XML file already exists, override not set, skipping'); // @translate
-                }
-
-                if ($toProcess === true) {
-                    ++$countProcessing;
-                    $this->startExtractOcrJob(
-                        $media->item()->id(),
-                        $targetFilename,
-                        $media->storageId(),
-                        $media->extension(),
-                        $basePath,
-                        $baseUri
-                    );
-                }
-            }
-        }
-
-        $message = new Message(sprintf(
-            'Creating Extract OCR files in background (%s PDF, %s XML will be created)', // @translate,
-            $countPdf,
-            $countProcessing
-        ));
+        $message = new Message(
+            'Creating Extract OCR files in background (job %1$s#%2$s%3$s, %4$slogs%3$s).', // @translate
+            sprintf(
+                '<a href="%s">',
+                htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId()]))
+            ),
+            $job->getId(),
+            '</a>',
+            sprintf(
+                '<a href="%s">',
+                htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log']))
+            )
+        );
+        $message->setEscapeHtml(false);
         $controller->messenger()->addSuccess($message);
+        return true;
     }
 
     /**
-     * Launch extractOcr's job
+     * Launch extract ocr's job for an item.
      *
      * @param Event $event
      */
-    public function extractOcr(\Zend\EventManager\Event $event)
+    public function extractOcr(Event $event)
     {
-        list($basePath, $baseUri) = $this->getPathConfig();
-
         $response = $event->getParams()['response'];
+        /** @var \Omeka\Entity\Item $item */
         $item = $response->getContent();
 
+        $hasPdf = false;
+        $targetFilename = null;
         foreach ($item->getMedia() as $media) {
-            $fileExt = $media->getExtension();
-            if (strtolower($fileExt) === 'pdf') {
-                $targetFilename = sprintf('%s.%s', basename($media->getSource(), '.pdf'), 'xml');
-
-                if (!$this->getMediaFromFilename($item->getId(), $targetFilename, 'xml')) {
-                    $this->startExtractOcrJob(
-                        $media->getItem()->getId(),
-                        $targetFilename,
-                        $media->getStorageId(),
-                        $media->getExtension(),
-                        $basePath,
-                        $baseUri
-                    );
-                }
+            if (strtolower($media->getExtension()) === 'pdf' && $media->getMediaType() === 'application/pdf') {
+                $hasPdf = true;
+                $targetFilename = basename($media->getSource(), '.pdf') . '.xml';
+                break;
             }
         }
+
+        if (!$hasPdf || $targetFilename === '.xml') {
+            return;
+        }
+
+        // Don't override an already processed pdf when updating an item.
+        if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'xml')) {
+            return;
+        }
+
+        $params = [
+            'itemId' => $item->getId(),
+            'override' => false,
+        ];
+        list($params['basePath'], $params['baseUri']) = $this->getPathConfig();
+        $this->getServiceLocator()->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
     }
 
-    private function startExtractOcrJob($itemId, $filename, $storageId, $extension, $basePath, $baseUri)
-    {
-        $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class,
-            [
-                'itemId' => $itemId,
-                'filename' => $filename,
-                'storageId' => $storageId,
-                'extension' => $extension,
-                'basePath' => $basePath ,
-                'baseUri' => $baseUri,
-            ]);
-    }
-
-    private function getMediaFromFilename($itemId, $filename, $extension)
+    /**
+     * Get a media from item id, source name and extension.
+     *
+     * @todo Improve search of ocr pdf2xml files.
+     *
+     * @param int $itemId
+     * @param string $filename
+     * @param string $extension
+     * @return \Omeka\Api\Representation\MediaRepresentation|null
+     */
+    protected function getMediaFromFilename($itemId, $filename, $extension)
     {
         $services = $this->getServiceLocator();
         $api = $services->get('Omeka\ApiManager');
@@ -236,7 +208,10 @@ class Module extends AbstractModule
         return null;
     }
 
-    // TODO add parameter for xml storage path.
+    /**
+     * @todo Add parameter for xml storage path.
+     * @todo Use a factory.
+     */
     protected function getPathConfig()
     {
         $config = $this->serviceLocator->get('Config');
@@ -251,6 +226,9 @@ class Module extends AbstractModule
             $baseUri = $serverUrlHelper($basePathHelper('files'));
         }
 
-        return [$basePath . '/original', $baseUri . '/original'];
+        return [
+            $basePath . '/original',
+            $baseUri . '/original',
+        ];
     }
 }
