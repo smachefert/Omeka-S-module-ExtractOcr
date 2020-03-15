@@ -35,9 +35,13 @@ class ExtractOcr extends AbstractJob
     protected $baseUri;
 
     /**
-     * @var string
+     * @var array
      */
-    protected $store;
+    protected $store = [
+        'item' => false,
+        'media_pdf' => false,
+        'media_xml' => false,
+    ];
 
     /**
      * @var \Omeka\Api\Representation\PropertyRepresentation|null
@@ -55,9 +59,9 @@ class ExtractOcr extends AbstractJob
     protected $createEmptyXml;
 
     /**
-     * @var string
+     * @var array
      */
-    protected $text;
+    protected $contentValue;
 
     /**
      * @brief Attach attracted ocr data from pdf with item
@@ -76,26 +80,24 @@ class ExtractOcr extends AbstractJob
 
         // TODO Manage the case where there are multiple pdf by item (rare).
 
-        $this->store = $settings->get('extractocr_content_store');
-        if (!in_array($this->store, ['item', 'media']) || $this->getArg('manual')) {
-            $this->store = false;
-        }
-        if ($this->store) {
+        $contentStore = array_filter($settings->get('extractocr_content_store'));
+        if ($contentStore) {
             $prop = $settings->get('extractocr_content_property');
             if ($prop) {
                 $prop = $this->api->search('properties', ['term' => $prop])->getContent();
                 if ($prop) {
                     $this->property = reset($prop);
                     $this->language = $settings->get('extractocr_content_language');
+                    $this->store['item'] = in_array('item', $contentStore) && !$this->getArg('manual');
+                    $this->store['media_pdf'] = in_array('media_pdf', $contentStore);
+                    $this->store['media_xml'] = in_array('media_xml', $contentStore);
                 }
             }
-        }
-
-        if ($this->store && !$this->property) {
-            $this->store = false;
-            $this->logger->warn(new Message(
-                'The option to store text is set, but no property is defined.' // @translate
-            ));
+            if (!$this->property) {
+                $this->logger->warn(new Message(
+                    'The option to store text is set, but no property is defined.' // @translate
+                ));
+            }
         }
 
         $this->createEmptyXml = (bool) $settings->get('extractocr_create_empty_xml');
@@ -176,19 +178,13 @@ class ExtractOcr extends AbstractJob
                 continue;
             }
 
-            $this->text = null;
+            $this->contentValue = null;
             $xmlMedia = $this->extractOcrForMedia($pdfMedia, $targetFilename);
             if ($xmlMedia) {
                 $this->logger->info(sprintf('Media #%1$d created for xml file.', // @translate
                     $xmlMedia->id()));
-                if ($this->property && $this->store === 'item' && strlen($this->text)) {
-                    $value = [
-                        'type' => 'literal',
-                        'property_id' => $this->property->id(),
-                        '@value' => $this->text,
-                        '@language' => $this->language,
-                    ];
-                    $this->api->update('items', $item->id(), [$this->property->term() => [$value]], [], ['isPartial' => true, 'collectionAction' => 'append']);
+                if ($this->store['item'] && $this->contentValue) {
+                    $this->api->update('items', $item->id(), [$this->property->term() => [$this->contentValue]], [], ['isPartial' => true, 'collectionAction' => 'append']);
                 }
                 ++$countProcessed;
             } else {
@@ -281,15 +277,17 @@ class ExtractOcr extends AbstractJob
         ];
 
         if ($this->property && strlen($content)) {
-            if ($this->store === 'media') {
-                $data[$this->property->term()][] = [
-                    'type' => 'literal',
-                    'property_id' => $this->property->id(),
-                    '@value' => $content,
-                    '@language' => $this->language,
-                ];
-            } elseif ($this->store === 'item') {
-                $this->text = $content;
+            $this->contentValue = [
+                'type' => 'literal',
+                'property_id' => $this->property->id(),
+                '@value' => $content,
+                '@language' => $this->language,
+            ];
+            if ($this->store['media_pdf']) {
+                $this->api->update('media', $pdfMedia->id(), [$this->property->term() => [$this->contentValue]], [], ['isPartial' => true, 'collectionAction' => 'append']);
+            }
+            if ($this->store['media_xml']) {
+                $data[$this->property->term()][] = $this->contentValue;
             }
         }
 

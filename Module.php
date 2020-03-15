@@ -112,10 +112,9 @@ class Module extends AbstractModule
         $form->setData($data);
 
         $html = '<p>'
-            . sprintf(
-                $renderer->translate('XML files will be rebuilt for all PDF files of your Omeka install.'), // @translate
-                '<code>', '</code>'
-            )
+            . $renderer->translate('Options are used during edition of items and for bulk processing.') // @translate
+            . $renderer->translate('The insertion of the text in the item properties is currently not supported.') // @translate
+            . ' ' . $renderer->translate('XML files will be rebuilt for all PDF files of your Omeka install.') // @translate
             . '</p>';
         $html .= $renderer->formCollection($form);
         return $html;

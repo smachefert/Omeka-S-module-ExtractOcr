@@ -18,13 +18,15 @@ class ConfigForm extends Form
         $this
             ->add([
                 'name' => 'extractocr_content_store',
-                'type' => Element\Radio::class,
+                'type' => Element\MultiCheckbox::class,
                 'options' => [
                     'label' => 'Store the raw text in a property of a resource', // @translate
+                    'info' => 'Text cannot be stored in item when an item is manually edited.', // @translate
+                    'empty_option' => '',
                     'value_options' => [
-                        'media' => 'Media', // @translate
                         'item' => 'Item', // @translate
-                        'none' => 'None', // @translate
+                        'media_pdf' => 'Pdf media', // @translate
+                        'media_xml' => 'Xml media', // @translate
                     ],
                 ],
                 'attributes' => [
@@ -35,7 +37,7 @@ class ConfigForm extends Form
                 'name' => 'extractocr_content_property',
                 'type' => PropertySelect::class,
                 'options' => [
-                    'label' => 'Media property to save pdf raw text', // @translate
+                    'label' => 'Property to save pdf raw text', // @translate
                     'info' => 'To save content makes it searchable anywhere. It is recommended to use "bibo:content". Note that it will increase the noise in the results, unless you use a search engine.', // @translate
                     'empty_option' => '',
                     'term_as_value' => true,
