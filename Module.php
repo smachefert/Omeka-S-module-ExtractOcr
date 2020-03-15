@@ -1,14 +1,12 @@
-<?php 
-  
+<?php
+
 namespace ExtractOcr;
 
 use ExtractOcr\Form\ConfigForm;
-use ExtractOcr\Job\DerivativeImages;
 use ExtractOcr\Job\ExtractOcr;
 use Omeka\Module\AbstractModule;
 use Omeka\Module\Exception\ModuleCannotInstallException;
 use Omeka\Stdlib\Message;
-use Omeka\View\Helper\Api;
 use Zend\EventManager\Event;
 use Zend\EventManager\SharedEventManagerInterface;
 use Zend\Mvc\Controller\AbstractController;
@@ -24,8 +22,8 @@ class Module extends AbstractModule
         // Don't install if the pdftotext command doesn't exist.
         // See: http://stackoverflow.com/questions/592620/check-if-a-program-exists-from-a-bash-script
         if ((int) shell_exec('hash pdftotext 2>&- || echo 1')) {
-          $logger->info("pdftotext not found");
-          throw new ModuleCannotInstallException($t->translate('The pdftotext command-line utility '
+            $logger->info('pdftotext not found');
+            throw new ModuleCannotInstallException($t->translate('The pdftotext command-line utility '
                 . 'is not installed. pdftotext must be installed to install this plugin.'));
         }
 
@@ -37,27 +35,28 @@ class Module extends AbstractModule
      *        in omeka's settings
      * @param Omeka's SettingsInterface
      */
-    protected function allowXML($settings) {
-        $extension_whitelist =  $settings->get('extension_whitelist');
+    protected function allowXML($settings)
+    {
+        $extension_whitelist = $settings->get('extension_whitelist');
         $media_type_whitelist = $settings->get('media_type_whitelist');
 
         $xml_extension = [
-            "xml"
+            'xml',
         ];
 
         $xml_media_type = [
-            "application/xml",
-            "text/xml"
+            'application/xml',
+            'text/xml',
         ];
 
-        foreach($xml_extension as $extension) {
-            if ( !in_array($extension, $extension_whitelist)) {
+        foreach ($xml_extension as $extension) {
+            if (!in_array($extension, $extension_whitelist)) {
                 $extension_whitelist[] = $extension;
             }
         }
 
-        foreach($xml_media_type as $media_type) {
-            if ( !in_array($media_type, $media_type_whitelist)) {
+        foreach ($xml_media_type as $media_type) {
+            if (!in_array($media_type, $media_type_whitelist)) {
                 $media_type_whitelist[] = $media_type;
             }
         }
@@ -70,7 +69,6 @@ class Module extends AbstractModule
     {
         return include __DIR__ . '/config/module.config.php';
     }
-
 
     public function getConfigForm(PhpRenderer $renderer)
     {
@@ -89,14 +87,12 @@ class Module extends AbstractModule
 
     public function handleConfigForm(AbstractController $controller)
     {
-        list($basePath, $baseUri ) = $this->getPathConfig();
-
-
+        list($basePath, $baseUri) = $this->getPathConfig();
 
         $services = $this->getServiceLocator();
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
         $logger = $services->get('Omeka\Logger');
-        $logger->info("ExtractOCR in bulk mode");
+        $logger->info('ExtractOCR in bulk mode');
 
         $params = $controller->getRequest()->getPost();
 
@@ -120,17 +116,17 @@ class Module extends AbstractModule
 
         // We are going to send the item to be processed
         $api = $services->get('Omeka\ApiManager');
-        $response = $api->search('media', ['media_type' => "application/pdf"])->getContent();
+        $response = $api->search('media', ['media_type' => 'application/pdf'])->getContent();
 
         $countPdf = 0;
         $countProcessing = 0;
         foreach ($response as $media) {
             $fileExt = $media->extension();
 
-            if (in_array($fileExt, array('pdf', 'PDF'))) {
-                $logger->info(sprintf("Extracting OCR for %s", $media->source()));
+            if (in_array($fileExt, ['pdf', 'PDF'])) {
+                $logger->info(sprintf('Extracting OCR for %s', $media->source()));
                 $countPdf++;
-                $targetFilename = sprintf("%s.%s", basename($media->source(), ".pdf"), "xml");
+                $targetFilename = sprintf('%s.%s', basename($media->source(), '.pdf'), 'xml');
 
                 $searchXmlFile = $this->getMediaFromFilename($media->item()->id(), $targetFilename);
 
@@ -138,14 +134,14 @@ class Module extends AbstractModule
                 if ($params['override'] == 1) {
                     $toProcess = true;
                     if ($searchXmlFile) {
-                        $logger->info("XML already exists and override set to true, we are going to delete");
+                        $logger->info('XML already exists and override set to true, we are going to delete');
                         $api->delete('media', $searchXmlFile->id());
                     }
-                } elseif ( !$searchXmlFile ) {
+                } elseif (!$searchXmlFile) {
                     $toProcess = true;
-                    $logger->info("XML file does not exist, we are going to create it");
+                    $logger->info('XML file does not exist, we are going to create it');
                 } else {
-                    $logger->info("XML file already exists, override not set, skipping");
+                    $logger->info('XML file already exists, override not set, skipping');
                 }
 
                 if ($toProcess === true) {
@@ -162,13 +158,12 @@ class Module extends AbstractModule
             }
         }
 
-        $message = new Message(
-            sprintf('Creating Extract OCR files in background (%s PDF, %s XML will be created)', // @translate,
+        $message = new Message(sprintf(
+            'Creating Extract OCR files in background (%s PDF, %s XML will be created)', // @translate,
             $countPdf,
-            $countProcessing)
-            );
+            $countProcessing
+        ));
         $controller->messenger()->addSuccess($message);
-
     }
 
     /**
@@ -176,7 +171,6 @@ class Module extends AbstractModule
      *
      * @param SharedEventManagerInterface $sharedEventManager
      */
-
     public function attachListeners(SharedEventManagerInterface $sharedEventManager)
     {
         $sharedEventManager->attach(
@@ -192,9 +186,9 @@ class Module extends AbstractModule
         );
     }
 
-    //TODO add parameter for xml storage path
-    protected function getPathConfig() {
-
+    // TODO add parameter for xml storage path.
+    protected function getPathConfig()
+    {
         $config = $this->serviceLocator->get('Config');
 
         $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
@@ -214,21 +208,22 @@ class Module extends AbstractModule
      * @brief launch extractOcr's job
      * @param Event $event
      */
-    function extractOcr(\Zend\EventManager\Event $event) {
-        list($basePath, $baseUri ) = $this->getPathConfig();
+    public function extractOcr(\Zend\EventManager\Event $event)
+    {
+        list($basePath, $baseUri) = $this->getPathConfig();
 
         $response = $event->getParams()['response'];
         $item = $response->getContent();
 
-        foreach ($item->getMedia() as $media ) {
+        foreach ($item->getMedia() as $media) {
             $fileExt = $media->getExtension();
-            if (in_array($fileExt, array('pdf', 'PDF'))) {
-                $targetFilename = sprintf("%s.%s", basename($media->getSource(), ".pdf"), "xml");
+            if (in_array($fileExt, ['pdf', 'PDF'])) {
+                $targetFilename = sprintf('%s.%s', basename($media->getSource(), '.pdf'), 'xml');
 
                 if (!$this->getMediaFromFilename($item->getId(), $targetFilename)) {
                     $this->startExtractOcrJob(
                         $media->getItem()->getId(),
-                        $targetFilename ,
+                        $targetFilename,
                         $media->getStorageId(),
                         $media->getExtension(),
                         $basePath,
@@ -239,7 +234,8 @@ class Module extends AbstractModule
         }
     }
 
-    private function startExtractOcrJob($itemId, $filename, $storageId, $extension, $basePath, $baseUri) {
+    private function startExtractOcrJob($itemId, $filename, $storageId, $extension, $basePath, $baseUri)
+    {
         $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
             [
                 'itemId' => $itemId,
@@ -251,7 +247,8 @@ class Module extends AbstractModule
             ]);
     }
 
-    private function getMediaFromFilename($item_id, $filename) {
+    private function getMediaFromFilename($item_id, $filename)
+    {
         $services = $this->getServiceLocator();
         $api = $services->get('Omeka\ApiManager');
 

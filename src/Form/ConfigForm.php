@@ -18,8 +18,8 @@ class ConfigForm extends Form
             'name' => 'override',
             'type' => Element\Checkbox::class,
             'options' => [
-                'label' => "Extract OCR even if the XML file already exists" // @translate
-            ]
+                'label' => "Extract OCR even if the XML file already exists", // @translate
+            ],
         ]);
 
         $this->add([
