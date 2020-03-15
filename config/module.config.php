@@ -4,8 +4,8 @@ namespace ExtractOcr;
 
 return [
     'form_elements' => [
-        'factories' => [
-            Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
+        'invokables' => [
+            Form\ConfigForm::class => Form\ConfigForm::class,
         ],
     ],
     'translator' => [

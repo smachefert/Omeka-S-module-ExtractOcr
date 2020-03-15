@@ -1,7 +1,6 @@
 <?php
 namespace ExtractOcr\Form;
 
-use Doctrine\DBAL\Connection;
 use Zend\Form\Element;
 use Zend\Form\Form;
 
@@ -33,21 +32,5 @@ class ConfigForm extends Form
                 'value' => 'Process', // @translate
             ],
         ]);
-    }
-
-    /**
-     * @param Connection $connection
-     */
-    public function setConnection(Connection $connection)
-    {
-        $this->connection = $connection;
-    }
-
-    /**
-     * @return \Doctrine\DBAL\Connection
-     */
-    public function getConnection()
-    {
-        return $this->connection;
     }
 }
