@@ -20,7 +20,7 @@ return [
     ],
     'extractocr' => [
         'config' => [
-            'extractocr_content_store' => true,
+            'extractocr_content_store' => 'media',
             'extractocr_content_property' => 'bibo:content',
             'extractocr_content_language' => '',
             'extractocr_create_empty_xml' => false,

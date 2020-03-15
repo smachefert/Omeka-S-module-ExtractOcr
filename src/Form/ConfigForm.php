@@ -18,9 +18,14 @@ class ConfigForm extends Form
         $this
             ->add([
                 'name' => 'extractocr_content_store',
-                'type' => Element\Checkbox::class,
+                'type' => Element\Radio::class,
                 'options' => [
-                    'label' => 'Store the raw text in the specified property', // @translate
+                    'label' => 'Store the raw text in a property of a resource', // @translate
+                    'value_options' => [
+                        'media' => 'Media', // @translate
+                        'item' => 'Item', // @translate
+                        'none' => 'None', // @translate
+                    ],
                 ],
                 'attributes' => [
                     'id' => 'extractocr_content_store',
@@ -95,6 +100,10 @@ class ConfigForm extends Form
             ]);
 
         $this->getInputFilter()
+            ->add([
+                'name' => 'extractocr_content_store',
+                'required' => false,
+            ])
             ->add([
                 'name' => 'extractocr_content_property',
                 'required' => false,

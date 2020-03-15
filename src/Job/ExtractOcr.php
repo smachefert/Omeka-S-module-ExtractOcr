@@ -35,6 +35,11 @@ class ExtractOcr extends AbstractJob
     protected $baseUri;
 
     /**
+     * @var string
+     */
+    protected $store;
+
+    /**
      * @var \Omeka\Api\Representation\PropertyRepresentation|null
      */
     protected $property;
@@ -48,6 +53,11 @@ class ExtractOcr extends AbstractJob
      * @var bool
      */
     protected $createEmptyXml;
+
+    /**
+     * @var string
+     */
+    protected $text;
 
     /**
      * @brief Attach attracted ocr data from pdf with item
@@ -66,11 +76,14 @@ class ExtractOcr extends AbstractJob
 
         // TODO Manage the case where there are multiple pdf by item (rare).
 
-        $store = $settings->get('extractocr_content_store');
-        if ($store) {
+        $this->store = $settings->get('extractocr_content_store');
+        if (!in_array($this->store, ['item', 'media'])) {
+            $this->store = false;
+        }
+        if ($this->store) {
             $prop = $settings->get('extractocr_content_property');
             if ($prop) {
-                $prop= $this->api->search('properties', ['term' => $this->property])->getContent();
+                $prop = $this->api->search('properties', ['term' => $prop])->getContent();
                 if ($prop) {
                     $this->property = reset($prop);
                     $this->language = $settings->get('extractocr_content_language');
@@ -78,7 +91,8 @@ class ExtractOcr extends AbstractJob
             }
         }
 
-        if ($store && !$this->property) {
+        if ($this->store && !$this->property) {
+            $this->store = false;
             $this->logger->warn(new Message(
                 'The option to store text is set, but no property is defined.' // @translate
             ));
@@ -162,10 +176,20 @@ class ExtractOcr extends AbstractJob
                 continue;
             }
 
+            $this->text = null;
             $xmlMedia = $this->extractOcrForMedia($pdfMedia, $targetFilename);
             if ($xmlMedia) {
                 $this->logger->info(sprintf('Media #%1$d created for xml file.', // @translate
                     $xmlMedia->id()));
+                if ($this->property && $this->store === 'item' && strlen($this->text)) {
+                    $value = [
+                        'type' => 'literal',
+                        'property_id' => $this->property->id(),
+                        '@value' => $this->text,
+                        '@language' => $this->language,
+                    ];
+                    $this->api->update('items', $item->id(), [$this->property->term() => [$value]], [], ['isPartial' => true, 'collectionAction' => 'append']);
+                }
                 ++$countProcessed;
             } else {
                 ++$countFailed;
@@ -237,9 +261,9 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
-        $text = file_get_contents($xmlFilepath);
-        $text = trim(strip_tags($text));
-        if (!$this->createEmptyXml && !strlen($text)) {
+        $content = file_get_contents($xmlFilepath);
+        $content = trim(strip_tags($content));
+        if (!$this->createEmptyXml && !strlen($content)) {
             $this->logger->notice(new Message('The xml for pdf #%1$d has no text content and is not created.', // @translate
                 $pdfMedia->id()
             ));
@@ -256,13 +280,17 @@ class ExtractOcr extends AbstractJob
             'o:source' => $filename,
         ];
 
-        if ($this->property && strlen($text)) {
-            $data[$this->property->term()][] = [
-                'type' => 'literal',
-                'property_id' => $this->property->id(),
-                '@value' => $text,
-                '@language' => $this->language,
-            ];
+        if ($this->property && strlen($content)) {
+            if ($this->store === 'media') {
+                $data[$this->property->term()][] = [
+                    'type' => 'literal',
+                    'property_id' => $this->property->id(),
+                    '@value' => $content,
+                    '@language' => $this->language,
+                ];
+            } elseif ($this->store === 'item') {
+                $this->text = $content;
+            }
         }
 
         try {
