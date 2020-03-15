@@ -85,18 +85,19 @@ class ExtractOcr extends AbstractJob
 
         $countPdf = 0;
         $countSkipped = 0;
+        $countFailed = 0;
         $countProcessed = 0;
         foreach ($pdfMediaIds as $pdfMediaId) {
             if ($this->shouldStop()) {
                 if ($override) {
                     $this->logger->warn(new Message(
-                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed.', // @translate
-                        $countProcessed, $totalToProcess
+                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d failed.', // @translate
+                        $countProcessed, $totalToProcess, $countFailed
                     ));
                 } else {
                     $this->logger->warn(new Message(
-                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed and %1$d skipped.', // @translate
-                        $countProcessed, $totalToProcess, $countSkipped
+                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d skipped, %4$d failed.', // @translate
+                        $countProcessed, $totalToProcess, $countSkipped, $countFailed
                     ));
                 }
                 return;
@@ -125,51 +126,33 @@ class ExtractOcr extends AbstractJob
                 continue;
             }
 
-            $this->extractOcrForMedia($pdfMedia, $targetFilename);
-            ++$countProcessed;
+            $xmlMedia = $this->extractOcrForMedia($pdfMedia, $targetFilename);
+            if ($xmlMedia) {
+                $this->logger->info(sprintf('Media #%1$d created for xml file.', // @translate
+                    $xmlMedia->id()));
+                ++$countProcessed;
+            } else {
+                ++$countFailed;
+            }
 
             // Avoid memory issue.
             unset($pdfMedia);
+            unset($xmlMedia);
             unset($item);
         }
 
         if ($override) {
             $message = new Message(sprintf(
-                'Processed %1$d/%2$d pdf files, %3$d xml files created.', // @translate,
-                $countPdf, $totalToProcess, $countProcessed
+                'Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed.', // @translate,
+                $countPdf, $totalToProcess, $countProcessed, $countFailed
             ));
         } else {
             $message = new Message(sprintf(
-                'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created.', // @translate,
-                $countPdf, $totalToProcess, $countSkipped, $countProcessed
+                'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created, %5$d failed.', // @translate,
+                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $countFailed
             ));
         }
         $this->logger->notice($message);
-    }
-
-    protected function extractOcrForMedia(MediaRepresentation $pdfMedia, $filename)
-    {
-        $filePath = sprintf('%s/%s', $this->basePath, $pdfMedia->storageId() . '.' . $pdfMedia->extension());
-
-        // Do the conversion of the pdf to xml.
-        $this->pdfToText($filePath, $pdfMedia->storageId());
-
-        $data = [
-            'o:ingester' => 'url',
-            'file_index' => 0,
-            'o:item' => [
-                'o:id' => $pdfMedia->item()->id(),
-            ],
-            'ingest_url' => $this->baseUri . '/' . $pdfMedia->storageId() . '.xml',
-            'o:source' => $filename,
-        ];
-
-        $media = $this->api->create('media', $data)->getContent();
-
-        // Save the xml file as the last media to avoid thumbnails issues.
-        if ($media) {
-            $this->reorderMedias($media);
-        }
     }
 
     /**
@@ -197,20 +180,72 @@ class ExtractOcr extends AbstractJob
     }
 
     /**
+     * @param MediaRepresentation $pdfMedia
+     * @param string $filename
+     * @return MediaRepresentation|null The xml media.
+     */
+    protected function extractOcrForMedia(MediaRepresentation $pdfMedia, $filename)
+    {
+        $filepath = $this->basePath . '/' . $pdfMedia->filename();
+        if (!file_exists($filepath)) {
+            $this->logger->err(sprintf('Missing pdf file (media #%1$d).', $pdfMedia->id())); // @translate
+            return null;
+        }
+
+        // Do the conversion of the pdf to xml.
+        $this->pdfToText($filepath, $pdfMedia->storageId());
+
+        $xmlFilepath = $this->basePath . '/' . $filename;
+        if (!file_exists($xmlFilepath)) {
+            $this->logger->err(sprintf('Xml file was not created for media #%1$s.', $pdfMedia->id())); // @translate
+            return null;
+        }
+
+        $data = [
+            'o:ingester' => 'url',
+            'file_index' => 0,
+            'o:item' => [
+                'o:id' => $pdfMedia->item()->id(),
+            ],
+            'ingest_url' => $this->baseUri . '/' . $pdfMedia->storageId() . '.xml',
+            'o:source' => $filename,
+        ];
+
+        try {
+            $media = $this->api->create('media', $data)->getContent();
+        } catch (\Omeka\Api\Exception\ExceptionInterface $e) {
+            // Generally a bad or missing pdf file.
+            $this->logger->err($e->getMessage());
+            return null;
+        } catch (\Exception $e) {
+            $this->logger->err($e);
+            return null;
+        }
+
+        // Save the xml file as the last media to avoid thumbnails issues.
+        if ($media) {
+            $this->reorderMedias($media);
+            return $media;
+        }
+
+        return null;
+    }
+
+    /**
      * Extract and store OCR Data from pdf in .xml file
      *
-     * @todo Use Omeka CLI service.
+     * FIXME Use Omeka CLI service and temporary file.
      *
-     * @param string $path File's path of the pdf
-     * @param string $filename File name on Omeka after import
+     * @param string $filepath File's path of the pdf
+     * @param string $filename Storage id on Omeka after import (no extension)
      */
-    protected function pdfToText($path, $filename)
+    protected function pdfToText($filepath, $filename)
     {
-        $path = escapeshellarg($path);
-        $xmlFilePath = $this->basePath . '/' . $filename;
-        $xmlFilePath = escapeshellarg($xmlFilePath);
+        $filepath = escapeshellarg($filepath);
+        $xmlFilepath = $this->basePath . '/' . $filename;
+        $xmlFilepath = escapeshellarg($xmlFilepath);
 
-        $cmd = "pdftohtml -i -c -hidden -xml $path $xmlFilePath";
+        $cmd = "pdftohtml -i -c -hidden -xml $filepath $xmlFilepath";
 
         shell_exec($cmd);
     }
