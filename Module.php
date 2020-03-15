@@ -116,16 +116,16 @@ class Module extends AbstractModule
 
         // We are going to send the item to be processed
         $api = $services->get('Omeka\ApiManager');
-        $response = $api->search('media', ['media_type' => 'application/pdf'])->getContent();
+        /** @var \Omeka\Api\Representation\MediaRepresentation[] $medias */
+        $medias = $api->search('media', ['media_type' => 'application/pdf'])->getContent();
 
         $countPdf = 0;
         $countProcessing = 0;
-        foreach ($response as $media) {
+        foreach ($medias as $media) {
             $fileExt = $media->extension();
-
-            if (in_array($fileExt, ['pdf', 'PDF'])) {
+            if (strtolower($fileExt) === 'pdf') {
                 $logger->info(sprintf('Extracting OCR for %s', $media->source()));
-                $countPdf++;
+                ++$countPdf;
                 $targetFilename = sprintf('%s.%s', basename($media->source(), '.pdf'), 'xml');
 
                 $searchXmlFile = $this->getMediaFromFilename($media->item()->id(), $targetFilename);
@@ -145,7 +145,7 @@ class Module extends AbstractModule
                 }
 
                 if ($toProcess === true) {
-                    $countProcessing++;
+                    ++$countProcessing;
                     $this->startExtractOcrJob(
                         $media->item()->id(),
                         $targetFilename,
@@ -217,7 +217,7 @@ class Module extends AbstractModule
 
         foreach ($item->getMedia() as $media) {
             $fileExt = $media->getExtension();
-            if (in_array($fileExt, ['pdf', 'PDF'])) {
+            if (strtolower($fileExt) === 'pdf') {
                 $targetFilename = sprintf('%s.%s', basename($media->getSource(), '.pdf'), 'xml');
 
                 if (!$this->getMediaFromFilename($item->getId(), $targetFilename)) {
@@ -236,7 +236,7 @@ class Module extends AbstractModule
 
     private function startExtractOcrJob($itemId, $filename, $storageId, $extension, $basePath, $baseUri)
     {
-        $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
+        $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class,
             [
                 'itemId' => $itemId,
                 'filename' => $filename,
