@@ -45,6 +45,11 @@ class ExtractOcr extends AbstractJob
     protected $language;
 
     /**
+     * @var bool
+     */
+    protected $createEmptyXml;
+
+    /**
      * @brief Attach attracted ocr data from pdf with item
      */
     public function perform()
@@ -78,6 +83,8 @@ class ExtractOcr extends AbstractJob
                 'The option to store text is set, but no property is defined.' // @translate
             ));
         }
+
+        $this->createEmptyXml = (bool) $settings->get('extractocr_create_empty_xml');
 
         // TODO The media type can be non-standard for pdf (text/pdf…) on old servers.
         $query = [
@@ -230,6 +237,15 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
+        $text = file_get_contents($xmlFilepath);
+        $text = trim(strip_tags($text));
+        if (!$this->createEmptyXml && !strlen($text)) {
+            $this->logger->notice(new Message('The xml for pdf #%1$d has no text content and is not created.', // @translate
+                $pdfMedia->id()
+            ));
+            return null;
+        }
+
         $data = [
             'o:ingester' => 'url',
             'file_index' => 0,
@@ -240,17 +256,13 @@ class ExtractOcr extends AbstractJob
             'o:source' => $filename,
         ];
 
-        if ($this->property) {
-            $text = file_get_contents($xmlFilepath);
-            $text = trim(strip_tags($text));
-            if (strlen($text)) {
-                $data[$this->property->term()][] = [
-                    'type' => 'literal',
-                    'property_id' => $this->property->id(),
-                    '@value' => $text,
-                    '@language' => $this->language,
-                ];
-            }
+        if ($this->property && strlen($text)) {
+            $data[$this->property->term()][] = [
+                'type' => 'literal',
+                'property_id' => $this->property->id(),
+                '@value' => $text,
+                '@language' => $this->language,
+            ];
         }
 
         try {

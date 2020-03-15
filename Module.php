@@ -40,6 +40,7 @@ class Module extends AbstractModule
         $settings->set('extractocr_content_store', $config['extractocr_content_store']);
         $settings->set('extractocr_content_property', $config['extractocr_content_property']);
         $settings->set('extractocr_content_language', $config['extractocr_content_language']);
+        $settings->set('extractocr_create_empty_xml', $config['extractocr_create_empty_xml']);
     }
 
     public function uninstall(ServiceLocatorInterface $services)
@@ -48,6 +49,7 @@ class Module extends AbstractModule
         $settings->delete('extractocr_content_store');
         $settings->delete('extractocr_content_property');
         $settings->delete('extractocr_content_language');
+        $settings->delete('extractocr_create_empty_xml');
     }
 
     /**
@@ -104,6 +106,7 @@ class Module extends AbstractModule
             'extractocr_content_store' => $settings->get('extractocr_content_store'),
             'extractocr_content_property' => $settings->get('extractocr_content_property'),
             'extractocr_content_language' => $settings->get('extractocr_content_language'),
+            'extractocr_create_empty_xml' => $settings->get('extractocr_create_empty_xml'),
         ]);
 
         $html = '<p>'
