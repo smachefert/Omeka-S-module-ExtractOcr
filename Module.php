@@ -155,11 +155,12 @@ class Module extends AbstractModule
             return true;
         }
 
-        $params['override'] = (bool) $params['override'];
-        $params['baseUri'] = $this->getBaseUri();
+        $args = [];
+        $args['override'] = (bool) $params['override'];
+        $args['baseUri'] = $this->getBaseUri();
 
         $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
-        $job = $dispatcher->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
+        $job = $dispatcher->dispatch(\ExtractOcr\Job\ExtractOcr::class, $args);
 
         $message = new Message(
             'Creating Extract OCR files in background (job %1$s#%2$s%3$s, %4$slogs%3$s).', // @translate
@@ -210,9 +211,9 @@ class Module extends AbstractModule
         }
 
         $params = [
-            'itemId' => $item->getId(),
             'override' => false,
             'baseUri' => $this->getBaseUri(),
+            'itemId' => $item->getId(),
             // FIXME Currently impossible to save text with event api.update.post;
             'manual' => true,
         ];
