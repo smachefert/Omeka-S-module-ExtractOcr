@@ -40,6 +40,17 @@ class Module extends AbstractModule
             );
         }
 
+        $baseUri = $services->get('Config')['file_store']['local']['base_uri'];
+        if (!$baseUri) {
+            $baseUri = $this->getBaseUri();
+            throw new ModuleCannotInstallException(
+                sprintf(
+                    $t->translate('The base uri "%s" is not set in the config file of Omeka "config/local.config.php". It must be set for technical reasons for now.'), //@translate
+                    $baseUri
+                )
+            );
+        }
+
         $settings = $services->get('Omeka\Settings');
         $config = require __DIR__ . '/config/module.config.php';
         $config = $config['extractocr']['config'];
@@ -256,13 +267,23 @@ class Module extends AbstractModule
      */
     protected function getBaseUri()
     {
-        $config = $this->serviceLocator->get('Config');
+        $services = $this->getServiceLocator();
+        $config = $services->get('Config');
         $baseUri = $config['file_store']['local']['base_uri'];
         if (!$baseUri) {
-            $helpers = $this->getServiceLocator()->get('ViewHelperManager');
+            $helpers = $services->get('ViewHelperManager');
             $serverUrlHelper = $helpers->get('serverUrl');
             $basePathHelper = $helpers->get('basePath');
             $baseUri = $serverUrlHelper($basePathHelper('files'));
+            if ($baseUri === 'http:///files' || $baseUri === 'https:///files') {
+                $t = $services->get('MvcTranslator');
+                throw new \Omeka\Mvc\Exception\RuntimeException(
+                    sprintf(
+                        $t->translate('The base uri is not set (key [file_store][local][base_uri]) in the config file of Omeka "config/local.config.php". It must be set for now (key [file_store][local][base_uri]) in order to process background jobs.'), //@translate
+                        $baseUri
+                    )
+                );
+            }
         }
         return $baseUri;
     }
