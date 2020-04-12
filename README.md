@@ -19,6 +19,18 @@ Installation
     sudo dnf install poppler-utils
 ```
 
+- Currently, the module requires to set the base uri in the config file of Omeka
+  `config/local.config.php` in order to upload the file in background:
+
+```
+    'file_store' => [
+        'local' => [
+            'base_path' => null, // Or the full path on the server if needed.
+            'base_uri' => 'https://example.org/files',
+        ],
+    ],
+```
+
 - Upload and unzip the Extract OCR module folder into your modules folder on the
   server, or you can install the module via github:
 
@@ -27,10 +39,9 @@ Installation
     git clone git@github.com:bubdxm/Omeka-S-module-ExtractOcr.git "ExtractOcr"
 ```
 
-- Take care to rename the folder ""ExtractOcr".
+- Take care to rename the folder "ExtractOcr".
 - Install it from the admin → Modules → Extract Ocr -> install
 - Extract OCR automaticaly allows the upload of XML files.
-
 
 Using the Extract OCR module
 ---------------------------
@@ -56,6 +67,7 @@ Optional modules
   any file. It can display books, images, maps, audio, movies, pdf, 3D views,
   and anything else as long as the appropriate extensions are installed.
   Or any other IIIF viewers, like [Mirador](https://github.com/Daniel-KM/Omeka-S-module-Mirador).
+
 
 Troubleshooting
 ---------------
