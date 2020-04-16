@@ -1,14 +1,13 @@
-<?php 
-  
+<?php
+
 namespace ExtractOcr;
 
 use ExtractOcr\Form\ConfigForm;
-use ExtractOcr\Job\DerivativeImages;
 use ExtractOcr\Job\ExtractOcr;
 use Omeka\Module\AbstractModule;
 use Omeka\Module\Exception\ModuleCannotInstallException;
+use Omeka\Settings\SettingsInterface;
 use Omeka\Stdlib\Message;
-use Omeka\View\Helper\Api;
 use Zend\EventManager\Event;
 use Zend\EventManager\SharedEventManagerInterface;
 use Zend\Mvc\Controller\AbstractController;
@@ -17,71 +16,122 @@ use Zend\View\Renderer\PhpRenderer;
 
 class Module extends AbstractModule
 {
-    public function install(ServiceLocatorInterface $serviceLocator)
-    {
-        $logger = $serviceLocator->get('Omeka\Logger');
-        $t = $serviceLocator->get('MvcTranslator');
-        // Don't install if the pdftotext command doesn't exist.
-        // See: http://stackoverflow.com/questions/592620/check-if-a-program-exists-from-a-bash-script
-        if ((int) shell_exec('hash pdftotext 2>&- || echo 1')) {
-          $logger->info("pdftotext not found");
-          throw new ModuleCannotInstallException($t->translate('The pdftotext command-line utility '
-                . 'is not installed. pdftotext must be installed to install this plugin.'));
-        }
-
-        $this->allowXML($serviceLocator->get('Omeka\Settings'));
-    }
-
-    /**
-     * @brief allow XML's extension and media type
-     *        in omeka's settings
-     * @param Omeka's SettingsInterface
-     */
-    protected function allowXML($settings) {
-        $extension_whitelist =  $settings->get('extension_whitelist');
-        $media_type_whitelist = $settings->get('media_type_whitelist');
-
-        $xml_extension = [
-            "xml"
-        ];
-
-        $xml_media_type = [
-            "application/xml",
-            "text/xml"
-        ];
-
-        foreach($xml_extension as $extension) {
-            if ( !in_array($extension, $extension_whitelist)) {
-                $extension_whitelist[] = $extension;
-            }
-        }
-
-        foreach($xml_media_type as $media_type) {
-            if ( !in_array($media_type, $media_type_whitelist)) {
-                $media_type_whitelist[] = $media_type;
-            }
-        }
-
-        $settings->set('extension_whitelist', $extension_whitelist);
-        $settings->set('media_type_whitelist', $media_type_whitelist);
-    }
-
     public function getConfig()
     {
         return include __DIR__ . '/config/module.config.php';
     }
 
+    public function install(ServiceLocatorInterface $services)
+    {
+        $t = $services->get('MvcTranslator');
+
+        // Don't install if the pdftotext command doesn't exist.
+        // See: http://stackoverflow.com/questions/592620/check-if-a-program-exists-from-a-bash-script
+        if ((int) shell_exec('hash pdftotext 2>&- || echo 1')) {
+            throw new ModuleCannotInstallException(
+                $t->translate('The pdftotext command-line utility is not installed. pdftotext must be installed to install this plugin.') //@translate
+            );
+        }
+
+        $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+        if (!$this->checkDestinationDir($basePath . '/temp')) {
+            throw new ModuleCannotInstallException(
+                $t->translate('The temporary directory "files/temp" is not writeable. Fix rights or create it manually.') //@translate
+            );
+        }
+
+        $baseUri = $services->get('Config')['file_store']['local']['base_uri'];
+        if (!$baseUri) {
+            $baseUri = $this->getBaseUri();
+            throw new ModuleCannotInstallException(
+                sprintf(
+                    $t->translate('The base uri "%s" is not set in the config file of Omeka "config/local.config.php". It must be set for technical reasons for now.'), //@translate
+                    $baseUri
+                )
+            );
+        }
+
+        $settings = $services->get('Omeka\Settings');
+        $config = require __DIR__ . '/config/module.config.php';
+        $config = $config['extractocr']['config'];
+        foreach ($config as $name => $value) {
+            $settings->set($name, $value);
+        }
+        $this->allowXML($services->get('Omeka\Settings'));
+    }
+
+    public function uninstall(ServiceLocatorInterface $services)
+    {
+        $settings = $services->get('Omeka\Settings');
+        $config = require __DIR__ . '/config/module.config.php';
+        $config = $config['extractocr']['config'];
+        foreach (array_keys($config) as $name) {
+            $settings->delete($name);
+        }
+    }
+
+    /**
+     * Attach listeners to events.
+     *
+     * @param SharedEventManagerInterface $sharedEventManager
+     */
+    public function attachListeners(SharedEventManagerInterface $sharedEventManager)
+    {
+        $sharedEventManager->attach(
+            \Omeka\Api\Adapter\ItemAdapter::class,
+            'api.create.post',
+            [$this, 'extractOcr']
+        );
+        $sharedEventManager->attach(
+            \Omeka\Api\Adapter\ItemAdapter::class,
+            'api.update.post',
+            [$this, 'extractOcr']
+        );
+    }
+
+    /**
+     * Allow XML's extension and media type in omeka's settings
+     *
+     * @param SettingsInterface
+     */
+    protected function allowXML(SettingsInterface $settings)
+    {
+        $extensionWhitelist = $settings->get('extension_whitelist', []);
+        $xmlExtensions = [
+            'xml',
+        ];
+        $extensionWhitelist = array_unique(array_merge($extensionWhitelist, $xmlExtensions));
+        $settings->set('extension_whitelist', $extensionWhitelist);
+
+        $mediaTypeWhitelist = $settings->get('media_type_whitelist');
+        $xmlMediaTypes = [
+            'application/xml',
+            'text/xml',
+            'application/vnd.pdf2xml+xml',
+        ];
+        $mediaTypeWhitelist = array_unique(array_merge($mediaTypeWhitelist, $xmlMediaTypes));
+        $settings->set('media_type_whitelist', $mediaTypeWhitelist);
+    }
 
     public function getConfigForm(PhpRenderer $renderer)
     {
         $services = $this->getServiceLocator();
+        $settings = $services->get('Omeka\Settings');
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
         $form->init();
+
+        $config = require __DIR__ . '/config/module.config.php';
+        $config = $config['extractocr']['config'];
+        $data = [];
+        foreach ($config as $name => $value) {
+            $data[$name] = $settings->get($name, $value);
+        }
+        $form->setData($data);
+
         $html = '<p>'
-            . sprintf(
-                $renderer->translate('XML files will be rebuilt for all PDF files of your Omeka install'), // @translate
-                '<code>', '</code>'
-            )
+            . $renderer->translate('Options are used during edition of items and for bulk processing.') // @translate
+            . $renderer->translate('The insertion of the text in the item properties is currently not supported.') // @translate
+            . ' ' . $renderer->translate('XML files will be rebuilt for all PDF files of your Omeka install.') // @translate
             . '</p>';
         $html .= $renderer->formCollection($form);
         return $html;
@@ -89,14 +139,8 @@ class Module extends AbstractModule
 
     public function handleConfigForm(AbstractController $controller)
     {
-        list($basePath, $baseUri ) = $this->getPathConfig();
-
-
-
         $services = $this->getServiceLocator();
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
-        $logger = $services->get('Omeka\Logger');
-        $logger->info("ExtractOCR in bulk mode");
 
         $params = $controller->getRequest()->getPost();
 
@@ -109,156 +153,157 @@ class Module extends AbstractModule
 
         $params = $form->getData();
 
+        $settings = $services->get('Omeka\Settings');
+        $settings->set('extractocr_content_store', $params['extractocr_content_store']);
+        $settings->set('extractocr_content_property', $params['extractocr_content_property']);
+
+        // Form is already validated in parent.
+        $params = (array) $controller->getRequest()->getPost();
+        $params = array_intersect_key($params, ['override' => null, 'process' => null]);
         if (empty($params['process']) || $params['process'] !== $controller->translate('Process')) {
             $message = 'No job launched.'; // @translate
             $controller->messenger()->addWarning($message);
+            return true;
+        }
+
+        $args = [];
+        $args['override'] = (bool) $params['override'];
+        $args['baseUri'] = $this->getBaseUri();
+
+        $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
+        $job = $dispatcher->dispatch(\ExtractOcr\Job\ExtractOcr::class, $args);
+
+        $message = new Message(
+            'Creating Extract OCR files in background (job %1$s#%2$s%3$s, %4$slogs%3$s).', // @translate
+            sprintf(
+                '<a href="%s">',
+                htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId()]))
+            ),
+            $job->getId(),
+            '</a>',
+            sprintf(
+                '<a href="%s">',
+                htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log']))
+            )
+        );
+        $message->setEscapeHtml(false);
+        $controller->messenger()->addSuccess($message);
+        return true;
+    }
+
+    /**
+     * Launch extract ocr's job for an item.
+     *
+     * @param Event $event
+     */
+    public function extractOcr(Event $event)
+    {
+        $response = $event->getParams()['response'];
+        /** @var \Omeka\Entity\Item $item */
+        $item = $response->getContent();
+
+        $hasPdf = false;
+        $targetFilename = null;
+        foreach ($item->getMedia() as $media) {
+            if (strtolower($media->getExtension()) === 'pdf' && $media->getMediaType() === 'application/pdf') {
+                $hasPdf = true;
+                $targetFilename = basename($media->getSource(), '.pdf') . '.xml';
+                break;
+            }
+        }
+
+        if (!$hasPdf || $targetFilename === '.xml') {
             return;
         }
 
-        unset($params['csrf']);
-        unset($params['process']);
-
-        // We are going to send the item to be processed
-        $api = $services->get('Omeka\ApiManager');
-        $response = $api->search('media', ['media_type' => "application/pdf"])->getContent();
-
-        $countPdf = 0;
-        $countProcessing = 0;
-        foreach ($response as $media) {
-            $fileExt = $media->extension();
-
-            if (in_array($fileExt, array('pdf', 'PDF'))) {
-                $logger->info(sprintf("Extracting OCR for %s", $media->source()));
-                $countPdf++;
-                $targetFilename = sprintf("%s.%s", basename($media->source(), ".pdf"), "xml");
-
-                $searchXmlFile = $this->getMediaFromFilename($media->item()->id(), $targetFilename);
-
-                $toProcess = false;
-                if ($params['override'] == 1) {
-                    $toProcess = true;
-                    if ($searchXmlFile) {
-                        $logger->info("XML already exists and override set to true, we are going to delete");
-                        $api->delete('media', $searchXmlFile->id());
-                    }
-                } elseif ( !$searchXmlFile ) {
-                    $toProcess = true;
-                    $logger->info("XML file does not exist, we are going to create it");
-                } else {
-                    $logger->info("XML file already exists, override not set, skipping");
-                }
-
-                if ($toProcess === true) {
-                    $countProcessing++;
-                    $this->startExtractOcrJob(
-                        $media->item()->id(),
-                        $targetFilename,
-                        $media->storageId(),
-                        $media->extension(),
-                        $basePath,
-                        $baseUri
-                    );
-                }
-            }
+        // Don't override an already processed pdf when updating an item.
+        if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'xml')) {
+            return;
         }
 
-        $message = new Message(
-            sprintf('Creating Extract OCR files in background (%s PDF, %s XML will be created)', // @translate,
-            $countPdf,
-            $countProcessing)
-            );
-        $controller->messenger()->addSuccess($message);
+        $params = [
+            'override' => false,
+            'baseUri' => $this->getBaseUri(),
+            'itemId' => $item->getId(),
+            // FIXME Currently impossible to save text with event api.update.post;
+            'manual' => true,
+        ];
+        $this->getServiceLocator()->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
 
+        $messenger = new \Omeka\Mvc\Controller\Plugin\Messenger;
+        $message = new Message('Extracting OCR in background.'); // @translate
+        $messenger->addNotice($message);
     }
 
     /**
-     * Attach listeners to events.
+     * Get a media from item id, source name and extension.
      *
-     * @param SharedEventManagerInterface $sharedEventManager
+     * @todo Improve search of ocr pdf2xml files.
+     *
+     * @param int $itemId
+     * @param string $filename
+     * @param string $extension
+     * @return \Omeka\Api\Representation\MediaRepresentation|null
      */
-
-    public function attachListeners(SharedEventManagerInterface $sharedEventManager)
+    protected function getMediaFromFilename($itemId, $filename, $extension)
     {
-        $sharedEventManager->attach(
-            \Omeka\Api\Adapter\ItemAdapter::class,
-            'api.create.post',
-            [$this, 'extractOcr']
-        );
-
-        $sharedEventManager->attach(
-            \Omeka\Api\Adapter\ItemAdapter::class,
-            'api.update.post',
-            [$this, 'extractOcr']
-        );
-    }
-
-    //TODO add parameter for xml storage path
-    protected function getPathConfig() {
-
-        $config = $this->serviceLocator->get('Config');
-
-        $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-
-        $baseUri = $config['file_store']['local']['base_uri'];
-        if (null === $baseUri) {
-            $helpers = $this->serviceLocator->get('ViewHelperManager');
-            $serverUrlHelper = $helpers->get('ServerUrl');
-            $basePathHelper = $helpers->get('BasePath');
-            $baseUri = $serverUrlHelper($basePathHelper('files'));
-        }
-
-        return [ $basePath . '/original', $baseUri . '/original' ];
-    }
-
-    /**
-     * @brief launch extractOcr's job
-     * @param Event $event
-     */
-    function extractOcr(\Zend\EventManager\Event $event) {
-        list($basePath, $baseUri ) = $this->getPathConfig();
-
-        $response = $event->getParams()['response'];
-        $item = $response->getContent();
-
-        foreach ($item->getMedia() as $media ) {
-            $fileExt = $media->getExtension();
-            if (in_array($fileExt, array('pdf', 'PDF'))) {
-                $targetFilename = sprintf("%s.%s", basename($media->getSource(), ".pdf"), "xml");
-
-                if (!$this->getMediaFromFilename($item->getId(), $targetFilename)) {
-                    $this->startExtractOcrJob(
-                        $media->getItem()->getId(),
-                        $targetFilename ,
-                        $media->getStorageId(),
-                        $media->getExtension(),
-                        $basePath,
-                        $baseUri
-                    );
-                }
-            }
-        }
-    }
-
-    private function startExtractOcrJob($itemId, $filename, $storageId, $extension, $basePath, $baseUri) {
-        $this->serviceLocator->get('Omeka\Job\Dispatcher')->dispatch('ExtractOcr\Job\ExtractOcr',
-            [
-                'itemId' => $itemId,
-                'filename' => $filename,
-                'storageId' => $storageId,
-                'extension' => $extension,
-                'basePath' => $basePath ,
-                'baseUri' => $baseUri,
-            ]);
-    }
-
-    private function getMediaFromFilename($item_id, $filename) {
         $services = $this->getServiceLocator();
         $api = $services->get('Omeka\ApiManager');
 
-        $searchXmlFile = $api->search('media', ['item_id' => $item_id, 'o:source' => $filename])->getContent();
-        if (sizeof($searchXmlFile) == 0) {
+        // The api search() doesn't allow to search a source, so we use read().
+        try {
+            return $api->read('media', [
+                'item' => $itemId,
+                'source' => $filename,
+                'extension' => $extension,
+            ])->getContent();
+        } catch (\Omeka\Api\Exception\NotFoundException $e) {
+        }
+        return null;
+    }
+
+    /**
+     * @todo Add parameter for xml storage path.
+     */
+    protected function getBaseUri()
+    {
+        $services = $this->getServiceLocator();
+        $config = $services->get('Config');
+        $baseUri = $config['file_store']['local']['base_uri'];
+        if (!$baseUri) {
+            $helpers = $services->get('ViewHelperManager');
+            $serverUrlHelper = $helpers->get('serverUrl');
+            $basePathHelper = $helpers->get('basePath');
+            $baseUri = $serverUrlHelper($basePathHelper('files'));
+            if ($baseUri === 'http:///files' || $baseUri === 'https:///files') {
+                $t = $services->get('MvcTranslator');
+                throw new \Omeka\Mvc\Exception\RuntimeException(
+                    sprintf(
+                        $t->translate('The base uri is not set (key [file_store][local][base_uri]) in the config file of Omeka "config/local.config.php". It must be set for now (key [file_store][local][base_uri]) in order to process background jobs.'), //@translate
+                        $baseUri
+                    )
+                );
+            }
+        }
+        return $baseUri;
+    }
+
+    /**
+     * Check or create the destination folder.
+     *
+     * @param string $dirPath
+     * @return bool
+     */
+    protected function checkDestinationDir($dirPath)
+    {
+        if (!file_exists($dirPath)) {
+            if (!is_writeable($this->basePath)) {
+                return false;
+            }
+            @mkdir($dirPath, 0755, true);
+        } elseif (!is_dir($dirPath) || !is_writeable($dirPath)) {
             return false;
         }
-        return $searchXmlFile[0];
+        return true;
     }
 }
