@@ -42,6 +42,7 @@ class Module extends AbstractModule
 
         $baseUri = $services->get('Config')['file_store']['local']['base_uri'];
         if (!$baseUri) {
+            $this->setServiceLocator($services);
             $baseUri = $this->getBaseUri();
             throw new ModuleCannotInstallException(
                 sprintf(
