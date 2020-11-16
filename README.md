@@ -62,11 +62,11 @@ Optional modules
 - [IIIF-Search](https://github.com/bubdxm/Omeka-S-module-IiifSearch):  Module
   for Omeka S that adds IIIF Search Api for fulltext searching on universal
   viewer.
-- [Universal Viewer](https://github.com/Daniel-KM/Omeka-S-module-UniversalViewer):
+- [Universal Viewer](https://gitlab.com/Daniel-KM/Omeka-S-module-UniversalViewer):
   Module for Omeka S that includes UniversalViewer, a unified online player for
   any file. It can display books, images, maps, audio, movies, pdf, 3D views,
   and anything else as long as the appropriate extensions are installed.
-  Or any other IIIF viewers, like [Mirador](https://github.com/Daniel-KM/Omeka-S-module-Mirador).
+  Or any other IIIF viewers, like [Mirador](https://gitlab.com/Daniel-KM/Omeka-S-module-Mirador).
 
 
 Troubleshooting
@@ -99,4 +99,4 @@ Copyright
 ---------
 
 * Copyright Syvain Machefert, Université Bordeaux 3 (see [symac](https://github.com/symac))
-* Copyright Daniel Berthereau, 2012-2019 (see [Daniel-KM](https://github.com/Daniel-KM) on GitHub)
+* Copyright Daniel Berthereau, 2020 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)
