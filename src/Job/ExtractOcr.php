@@ -1,11 +1,11 @@
-<?php
+<?php declare(strict_types=1);
 namespace ExtractOcr\Job;
 
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\File\TempFile;
 use Omeka\Job\AbstractJob;
 use Omeka\Stdlib\Message;
-use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
 class ExtractOcr extends AbstractJob
 {
@@ -78,7 +78,7 @@ class ExtractOcr extends AbstractJob
     /**
      * @brief Attach attracted ocr data from pdf with item
      */
-    public function perform()
+    public function perform(): void
     {
         $services = $this->getServiceLocator();
         $this->logger = $services->get('Omeka\Logger');
@@ -386,7 +386,7 @@ class ExtractOcr extends AbstractJob
      *
      * @param AbstractResourceEntityRepresentation $resource
      */
-    protected function storeContentInProperty(AbstractResourceEntityRepresentation $resource)
+    protected function storeContentInProperty(AbstractResourceEntityRepresentation $resource): void
     {
         if (empty($this->contentValue)) {
             return;
@@ -416,7 +416,7 @@ class ExtractOcr extends AbstractJob
      *
      * @param MediaRepresentation $media
      */
-    protected function reorderMedias(MediaRepresentation $media)
+    protected function reorderMedias(MediaRepresentation $media): void
     {
         // Note: the position is not available in representation.
 

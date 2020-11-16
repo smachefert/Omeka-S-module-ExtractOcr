@@ -1,10 +1,10 @@
-<?php
+<?php declare(strict_types=1);
 namespace ExtractOcr\Form;
 
-use Omeka\Form\Element\PropertySelect;
 use Laminas\Form\Element;
 use Laminas\Form\Fieldset;
 use Laminas\Form\Form;
+use Omeka\Form\Element\PropertySelect;
 
 class ConfigForm extends Form
 {
@@ -13,7 +13,7 @@ class ConfigForm extends Form
      */
     protected $connection;
 
-    public function init()
+    public function init(): void
     {
         $this
             ->add([
