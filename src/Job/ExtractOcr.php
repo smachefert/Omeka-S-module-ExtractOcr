@@ -17,7 +17,7 @@ class ExtractOcr extends AbstractJob
     const SQL_LIMIT = 25;
 
     /**
-     * @var \Zend\Log\Logger
+     * @var \Laminas\Log\Logger
      */
     protected $logger;
 
