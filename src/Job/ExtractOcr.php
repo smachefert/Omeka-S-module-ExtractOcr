@@ -87,7 +87,7 @@ class ExtractOcr extends AbstractJob
         $this->cli = $services->get('Omeka\Cli');
         $this->baseUri = $this->getArg('baseUri');
         $this->basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-        if (!$this->checkDestinationDir($this->basePath . '/temp')) {
+        if (!$this->checkDir($this->basePath . '/temp')) {
             $this->logger->err(new Message(
                 'The temporary directory "files/temp" is not writeable. Fix rights or create it manually.' // @translate
             ));
@@ -392,7 +392,7 @@ class ExtractOcr extends AbstractJob
             return;
         }
 
-        foreach($resource->value($this->property->term(), ['all' => true, 'default' => []]) as $v) {
+        foreach ($resource->value($this->property->term(), ['all' => true]) as $v) {
             if ($v->value() === $this->contentValue['@value']) {
                 return;
             }
@@ -458,7 +458,7 @@ class ExtractOcr extends AbstractJob
     {
         $baseDestination = '/temp';
         $destinationDir = $this->basePath . $baseDestination . $base;
-        if (!$this->checkDestinationDir($destinationDir)) {
+        if (!$this->checkDir($destinationDir)) {
             return null;
         }
 
@@ -498,7 +498,7 @@ class ExtractOcr extends AbstractJob
      * @param string $dirPath
      * @return bool
      */
-    protected function checkDestinationDir($dirPath)
+    protected function checkDir($dirPath)
     {
         if (!file_exists($dirPath)) {
             if (!is_writeable($this->basePath)) {

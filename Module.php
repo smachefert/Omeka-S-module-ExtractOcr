@@ -34,7 +34,7 @@ class Module extends AbstractModule
         }
 
         $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-        if (!$this->checkDestinationDir($basePath . '/temp')) {
+        if (!$this->checkDir($basePath . '/temp')) {
             throw new ModuleCannotInstallException(
                 $t->translate('The temporary directory "files/temp" is not writeable. Fix rights or create it manually.') //@translate
             );
@@ -295,10 +295,10 @@ class Module extends AbstractModule
      * @param string $dirPath
      * @return bool
      */
-    protected function checkDestinationDir($dirPath)
+    protected function checkDir($dirPath)
     {
         if (!file_exists($dirPath)) {
-            if (!is_writeable($this->basePath)) {
+            if (!is_writeable(basename($dirPath))) {
                 return false;
             }
             @mkdir($dirPath, 0755, true);
