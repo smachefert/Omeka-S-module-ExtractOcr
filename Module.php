@@ -1,18 +1,18 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace ExtractOcr;
 
 use ExtractOcr\Form\ConfigForm;
 use ExtractOcr\Job\ExtractOcr;
+use Laminas\EventManager\Event;
+use Laminas\EventManager\SharedEventManagerInterface;
+use Laminas\Mvc\Controller\AbstractController;
+use Laminas\ServiceManager\ServiceLocatorInterface;
+use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Module\AbstractModule;
 use Omeka\Module\Exception\ModuleCannotInstallException;
 use Omeka\Settings\SettingsInterface;
 use Omeka\Stdlib\Message;
-use Zend\EventManager\Event;
-use Zend\EventManager\SharedEventManagerInterface;
-use Zend\Mvc\Controller\AbstractController;
-use Zend\ServiceManager\ServiceLocatorInterface;
-use Zend\View\Renderer\PhpRenderer;
 
 class Module extends AbstractModule
 {
@@ -21,7 +21,7 @@ class Module extends AbstractModule
         return include __DIR__ . '/config/module.config.php';
     }
 
-    public function install(ServiceLocatorInterface $services)
+    public function install(ServiceLocatorInterface $services): void
     {
         $t = $services->get('MvcTranslator');
 
@@ -34,7 +34,7 @@ class Module extends AbstractModule
         }
 
         $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-        if (!$this->checkDestinationDir($basePath . '/temp')) {
+        if (!$this->checkDir($basePath . '/temp')) {
             throw new ModuleCannotInstallException(
                 $t->translate('The temporary directory "files/temp" is not writeable. Fix rights or create it manually.') //@translate
             );
@@ -61,7 +61,7 @@ class Module extends AbstractModule
         $this->allowXML($services->get('Omeka\Settings'));
     }
 
-    public function uninstall(ServiceLocatorInterface $services)
+    public function uninstall(ServiceLocatorInterface $services): void
     {
         $settings = $services->get('Omeka\Settings');
         $config = require __DIR__ . '/config/module.config.php';
@@ -76,7 +76,7 @@ class Module extends AbstractModule
      *
      * @param SharedEventManagerInterface $sharedEventManager
      */
-    public function attachListeners(SharedEventManagerInterface $sharedEventManager)
+    public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
         $sharedEventManager->attach(
             \Omeka\Api\Adapter\ItemAdapter::class,
@@ -95,7 +95,7 @@ class Module extends AbstractModule
      *
      * @param SettingsInterface
      */
-    protected function allowXML(SettingsInterface $settings)
+    protected function allowXML(SettingsInterface $settings): void
     {
         $extensionWhitelist = $settings->get('extension_whitelist', []);
         $xmlExtensions = [
@@ -197,7 +197,7 @@ class Module extends AbstractModule
      *
      * @param Event $event
      */
-    public function extractOcr(Event $event)
+    public function extractOcr(Event $event): void
     {
         $response = $event->getParams()['response'];
         /** @var \Omeka\Entity\Item $item */
@@ -295,10 +295,10 @@ class Module extends AbstractModule
      * @param string $dirPath
      * @return bool
      */
-    protected function checkDestinationDir($dirPath)
+    protected function checkDir($dirPath)
     {
         if (!file_exists($dirPath)) {
-            if (!is_writeable($this->basePath)) {
+            if (!is_writeable(basename($dirPath))) {
                 return false;
             }
             @mkdir($dirPath, 0755, true);
