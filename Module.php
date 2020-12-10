@@ -206,7 +206,9 @@ class Module extends AbstractModule
         $hasPdf = false;
         $targetFilename = null;
         foreach ($item->getMedia() as $media) {
-            if (strtolower($media->getExtension()) === 'pdf' && $media->getMediaType() === 'application/pdf') {
+            if (strtolower((string) $media->getExtension()) === 'pdf'
+                && $media->getMediaType() === 'application/pdf'
+            ) {
                 $hasPdf = true;
                 $targetFilename = basename($media->getSource(), '.pdf') . '.xml';
                 break;
