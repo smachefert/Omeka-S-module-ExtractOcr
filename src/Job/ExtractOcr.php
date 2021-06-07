@@ -502,6 +502,8 @@ class ExtractOcr extends AbstractJob
     {
         if (!file_exists($dirPath)) {
             if (!is_writeable($this->basePath)) {
+                $this->logger->err(new Message('Temporary destination for XML can not be created : %1$s', // @translate
+                $dirPath));
                 return false;
             }
             @mkdir($dirPath, 0755, true);
