@@ -368,7 +368,7 @@ class ExtractOcr extends AbstractJob
         $pdfFilepath = escapeshellarg($pdfFilepath);
         $xmlFilepath = escapeshellarg($xmlFilepath);
 
-        $command = "pdftohtml -i -c -hidden -xml $pdfFilepath $xmlFilepath";
+        $command = "pdftohtml -i -c -hidden -nodrm -xml $pdfFilepath $xmlFilepath";
 
         $result = $this->cli->execute($command);
         if ($result === false) {
