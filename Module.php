@@ -233,7 +233,7 @@ class Module extends AbstractModule
         ];
         $this->getServiceLocator()->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
 
-        $messenger = new \Omeka\Mvc\Controller\Plugin\Messenger;
+        $messenger = $this->getServiceLocator()->get('ControllerPluginManager')->get('messenger');
         $message = new Message('Extracting OCR in background.'); // @translate
         $messenger->addNotice($message);
     }
@@ -267,6 +267,7 @@ class Module extends AbstractModule
 
     /**
      * @todo Add parameter for xml storage path.
+     * @todo To get the base uri is useless now, since base uri is passed as job argument.
      */
     protected function getBaseUri()
     {
