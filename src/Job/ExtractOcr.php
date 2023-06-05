@@ -293,6 +293,8 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
+        $currentPosition = count($pdfMedia->item()->media());
+
         // This data is important to get the matching pdf and xml.
         $source = basename($pdfMedia->source(), '.pdf') . '.xml';
 
@@ -306,6 +308,7 @@ class ExtractOcr extends AbstractJob
             'file_index' => 0,
             'values_json' => '{}',
             'o:lang' => $this->language,
+            'position' => $currentPosition,
         ];
 
         if ($this->property && strlen($content)) {
@@ -448,7 +451,9 @@ class ExtractOcr extends AbstractJob
     /**
      * Save a temp file into the files/temp directory.
      *
+     * @see \DerivativeMedia\Module::makeTempFileDownloadable()
      * @see \Ebook\Mvc\Controller\Plugin\Ebook::saveFile()
+     * @see \ExtractOcr\Job\ExtractOcr::makeTempFileDownloadable()
      *
      * @param TempFile $source
      * @param string $base
