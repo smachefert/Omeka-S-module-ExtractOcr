@@ -19,14 +19,15 @@ Installation
     sudo dnf install poppler-utils
 ```
 
-- Currently, the module requires to set the base uri in the config file of Omeka
-  `config/local.config.php` in order to upload the file in background:
+- Before S Omeka version 3.1, the module requires to set the base uri in the
+  config file of Omeka `config/local.config.php` in order to upload the file in
+  background:
 
 ```
     'file_store' => [
         'local' => [
             'base_path' => null, // Or the full path on the server if needed.
-            'base_uri' => 'https://example.org/files',
+            'base_uri' => 'https://example.org/files', // To be removed in Omeka S v3.1.
         ],
     ],
 ```
