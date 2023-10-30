@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace ExtractOcr\Job;
 
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
@@ -299,16 +300,15 @@ class ExtractOcr extends AbstractJob
         $source = basename($pdfMedia->source(), '.pdf') . '.xml';
 
         $data = [
-            'o:ingester' => 'url',
             'o:item' => [
                 'o:id' => $pdfMedia->item()->id(),
             ],
-            'o:source' => $source,
+            'o:ingester' => 'url',
             'ingest_url' => $xmlStoredFile['url'],
-            'file_index' => 0,
-            'values_json' => '{}',
+            'o:source' => $source,
             'o:lang' => $this->language,
             'position' => $currentPosition,
+            'values_json' => '{}',
         ];
 
         if ($this->property && strlen($content)) {
@@ -333,7 +333,7 @@ class ExtractOcr extends AbstractJob
         }
 
         try {
-            $media = $this->api->create('media', $data, [])->getContent();
+            $media = $this->api->create('media', $data)->getContent();
         } catch (\Omeka\Api\Exception\ExceptionInterface $e) {
             // Generally a bad or missing pdf file.
             $this->logger->err($e->getMessage() ?: $e);
