@@ -205,12 +205,18 @@ class Module extends AbstractModule
 
         $hasPdf = false;
         $targetFilename = null;
+        /** @var \Omeka\Entity\Media $media */
         foreach ($item->getMedia() as $media) {
             if (strtolower((string) $media->getExtension()) === 'pdf'
                 && $media->getMediaType() === 'application/pdf'
             ) {
                 $hasPdf = true;
-                $targetFilename = basename($media->getSource(), '.pdf') . '.xml';
+                $source = (string) $media->getSource();
+                $filename = (string) parse_url($source, PHP_URL_PATH);
+                $targetFilename = strlen($filename)
+                    ? basename($filename, '.pdf')
+                    : $media->id() . '-' . $media->getStorageId();
+                $targetFilename .= '.xml';
                 break;
             }
         }
