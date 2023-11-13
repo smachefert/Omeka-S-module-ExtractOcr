@@ -12,21 +12,22 @@ Installation
 - This module needs `pdftohtml` command-line tool on your server, from the
   poppler utilities:
 
-```
-    # Debian and derivatives
-    sudo apt install poppler-utils
-    # Red Hat and derivatives
-    sudo dnf install poppler-utils
+```sh
+# Debian and derivatives
+sudo apt install poppler-utils
+# Red Hat and derivatives
+sudo dnf install poppler-utils
 ```
 
-- Currently, the module requires to set the base uri in the config file of Omeka
-  `config/local.config.php` in order to upload the file in background:
+- Before S Omeka version 3.1, the module requires to set the base uri in the
+  config file of Omeka `config/local.config.php` in order to upload the file in
+  background:
 
-```
+```php
     'file_store' => [
         'local' => [
             'base_path' => null, // Or the full path on the server if needed.
-            'base_uri' => 'https://example.org/files',
+            'base_uri' => 'https://example.org/files', // To be removed in Omeka S v3.1.
         ],
     ],
 ```
@@ -34,14 +35,15 @@ Installation
 - Upload and unzip the Extract OCR module folder into your modules folder on the
   server, or you can install the module via github:
 
-```
-    cd omeka-s/modules
-    git clone git@github.com:bubdxm/Omeka-S-module-ExtractOcr.git "ExtractOcr"
+```sh
+cd omeka-s/modules
+git clone git@github.com:bubdxm/Omeka-S-module-ExtractOcr.git "ExtractOcr"
 ```
 
 - Take care to rename the folder "ExtractOcr".
 - Install it from the admin → Modules → Extract Ocr -> install
 - Extract OCR automaticaly allows the upload of XML files.
+
 
 Using the Extract OCR module
 ---------------------------
@@ -99,4 +101,4 @@ Copyright
 ---------
 
 * Copyright Syvain Machefert, Université Bordeaux 3 (see [symac](https://github.com/symac))
-* Copyright Daniel Berthereau, 2020 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)
+* Copyright Daniel Berthereau, 2020-2023 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)

@@ -205,12 +205,18 @@ class Module extends AbstractModule
 
         $hasPdf = false;
         $targetFilename = null;
+        /** @var \Omeka\Entity\Media $media */
         foreach ($item->getMedia() as $media) {
             if (strtolower((string) $media->getExtension()) === 'pdf'
                 && $media->getMediaType() === 'application/pdf'
             ) {
                 $hasPdf = true;
-                $targetFilename = basename($media->getSource(), '.pdf') . '.xml';
+                $source = (string) $media->getSource();
+                $filename = (string) parse_url($source, PHP_URL_PATH);
+                $targetFilename = strlen($filename)
+                    ? basename($filename, '.pdf')
+                    : $media->id() . '-' . $media->getStorageId();
+                $targetFilename .= '.xml';
                 break;
             }
         }
@@ -233,7 +239,7 @@ class Module extends AbstractModule
         ];
         $this->getServiceLocator()->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
 
-        $messenger = new \Omeka\Mvc\Controller\Plugin\Messenger;
+        $messenger = $this->getServiceLocator()->get('ControllerPluginManager')->get('messenger');
         $message = new Message('Extracting OCR in background.'); // @translate
         $messenger->addNotice($message);
     }
@@ -267,6 +273,7 @@ class Module extends AbstractModule
 
     /**
      * @todo Add parameter for xml storage path.
+     * @todo To get the base uri is useless now, since base uri is passed as job argument.
      */
     protected function getBaseUri()
     {
