@@ -2,6 +2,7 @@
 
 namespace ExtractOcr\Job;
 
+use DateTime;
 use DOMDocument;
 use Exception;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
@@ -76,6 +77,11 @@ class ExtractOcr extends AbstractJob
      * @var array
      */
     protected $contentValue;
+
+    /**
+     * @var array
+     */
+    protected $dataPdf;
 
     /**
      * @var array
@@ -398,6 +404,14 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
+        $this->dataPdf = [
+            'source_pdf_file_url' => $pdfMedia->originalUrl(),
+            'source_pdf_file_name' => $pdfMedia->filename(),
+            'source_pdf_file_identifier' => (string) $pdfMedia->value('dcterms:identifier') ?: '',
+            'source_pdf_document_url' => $pdfMedia->item()->apiUrl(),
+            'source_pdf_document_identifier' => (string) $pdfMedia->item()->value('dcterms:identifier') ?: '',
+        ];
+
         // Do the conversion of the pdf to xml.
         $xmlTempFile = $this->pdfToText($pdfFilepath);
         if (empty($xmlTempFile)) {
@@ -531,17 +545,19 @@ class ExtractOcr extends AbstractJob
             /** @see https://gitlab.freedesktop.org/poppler/poppler/-/raw/master/utils/pdf2xml.dtd pdf2xml */
             $modulePath = dirname(__DIR__, 2);
             $xsltPath = $modulePath . '/data/xsl/pdf2xml_to_alto.xsl';
-            $dom = $this->processXslt($simpleXml, $xsltPath);
+            $args = $this->dataPdf;
+            $args['datetime'] = (new DateTime('now'))->format('Y-m-d\TH:i:s');
+            $dom = $this->processXslt($simpleXml, $xsltPath, $args);
             if (!$dom) {
                 $tempFile->delete();
                 return null;
             }
-            // $dom->preserveWhiteSpace = true;
-            // $dom->substituteEntities = true;
-            $dom->formatOutput = false;
-            $dom->recover = true;
+            $dom->formatOutput = true;
             $dom->strictErrorChecking = false;
             $dom->validateOnParse = false;
+            $dom->recover = true;
+            $dom->preserveWhiteSpace = false;
+            $dom->substituteEntities = true;
             $result = $dom->save($xmlFilepath);
             if (!$result) {
                 $tempFile->delete();
@@ -610,7 +626,7 @@ class ExtractOcr extends AbstractJob
         return $xmlContent;
     }
 
-    protected function processXslt(SimpleXMLElement $simpleXml, string $xsltPath): ?DOMDocument
+    protected function processXslt(SimpleXMLElement $simpleXml, string $xsltPath, array $params = []): ?DOMDocument
     {
         try {
             $domXml = dom_import_simplexml($simpleXml);
@@ -618,6 +634,7 @@ class ExtractOcr extends AbstractJob
             $domXsl->load($xsltPath);
             $proc = new XSLTProcessor();
             $proc->importStyleSheet($domXsl);
+            $proc->setParameter('', $params);
             return $proc->transformToDoc($domXml) ?: null;
         } catch (Exception $e) {
             return null;

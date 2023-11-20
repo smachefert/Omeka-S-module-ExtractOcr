@@ -15,7 +15,7 @@
     @copyright Daniel Berthereau, 2023
     @license CeCILL 2.1 https://cecill.info/licences/Licence_CeCILL_V2.1-fr.txt
 
-    @version 0.1.0
+    @version 0.1.1
 -->
 
 <xsl:stylesheet version="1.0"
@@ -38,7 +38,19 @@
 
     <xsl:variable name="software_creator">Daniel Berthereau</xsl:variable>
     <xsl:variable name="software_name">pdf2xml_to_alto.xsl</xsl:variable>
-    <xsl:variable name="software_version">0.1.0</xsl:variable>
+    <xsl:variable name="software_version">0.1.1</xsl:variable>
+
+    <!-- Parameters. -->
+
+    <!-- Date can only be a parameter in xslt v1 without exlt. -->
+    <xsl:param name="datetime"></xsl:param>
+
+    <!-- Source file. -->
+    <xsl:param name="source_pdf_file_url"></xsl:param>
+    <xsl:param name="source_pdf_file_name"></xsl:param>
+    <xsl:param name="source_pdf_file_identifier"></xsl:param>
+    <xsl:param name="source_pdf_document_url"></xsl:param>
+    <xsl:param name="source_pdf_document_identifier"></xsl:param>
 
     <!-- Identity template. -->
     <xsl:template match="@*|node()">
@@ -57,6 +69,35 @@
             >
             <Description>
                 <MeasurementUnit>pixel</MeasurementUnit>
+                <xsl:if test="
+                    $source_pdf_file_url != ''
+                    or $source_pdf_file_name != ''
+                    or $source_pdf_file_identifier != ''
+                    or $source_pdf_document_url != ''
+                    or $source_pdf_document_identifier != ''
+                    ">
+                    <sourceImageInformation>
+                        <xsl:if test="$source_pdf_file_name != ''">
+                            <fileName><xsl:value-of select="$source_pdf_file_name"/></fileName>
+                        </xsl:if>
+                        <xsl:if test="$source_pdf_file_url != '' or $source_pdf_file_identifier != ''">
+                            <fileIdentifier fileIdentifierLocation="{$source_pdf_file_url}">
+                                <xsl:choose>
+                                    <xsl:when test="$source_pdf_file_identifier != ''"><xsl:value-of select="$source_pdf_file_identifier"/></xsl:when>
+                                    <xsl:otherwise><xsl:value-of select="$source_pdf_file_url"/></xsl:otherwise>
+                                </xsl:choose>
+                            </fileIdentifier>
+                        </xsl:if>
+                        <xsl:if test="$source_pdf_file_url != '' or $source_pdf_file_identifier != ''">
+                            <documentIdentifier documentIdentifierLocation="{$source_pdf_document_url}">
+                                <xsl:choose>
+                                    <xsl:when test="$source_pdf_document_identifier != ''"><xsl:value-of select="$source_pdf_document_identifier"/></xsl:when>
+                                    <xsl:otherwise><xsl:value-of select="$source_pdf_document_url"/></xsl:otherwise>
+                                </xsl:choose>
+                            </documentIdentifier>
+                        </xsl:if>
+                    </sourceImageInformation>
+                </xsl:if>
                 <Processing ID="PR_1">
                     <processingStepDescription>Extraction of the text layer from pdf to xml</processingStepDescription>
                     <processingSoftware>
@@ -68,6 +109,11 @@
                     </processingSoftware>
                 </Processing>
                 <Processing ID="PR_2">
+                    <xsl:if test="$datetime != ''">
+                        <processingDateTime>
+                            <xsl:value-of select="$datetime"/>
+                        </processingDateTime>
+                    </xsl:if>
                     <processingStepDescription>Conversion from pdf2xml to alto</processingStepDescription>
                     <processingStepSettings>
                         <xsl:text>&#x0A;</xsl:text>
