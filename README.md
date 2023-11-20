@@ -3,7 +3,10 @@ Extract OCR (plugin upgraded for Omeka S)
 
 
 Module for Omeka S to extract OCR text in XML from PDF files, allowing fulltext
-searching within Universal Viewer plugin for omeka S  need [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch)).
+searching within any IIIF viewer like Universal Viewer or Mirador with [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch)).
+
+The xml format is the simple [pdf2xml](https://poppler.freedesktop.org) or the
+most common standard [alto](https://www.loc.gov/standards/alto).
 
 
 Installation
@@ -19,7 +22,7 @@ sudo apt install poppler-utils
 sudo dnf install poppler-utils
 ```
 
-- Before S Omeka version 3.1, the module requires to set the base uri in the
+- **Before Omeka S version 3.1**, the module requires to set the base uri in the
   config file of Omeka `config/local.config.php` in order to upload the file in
   background:
 
@@ -69,6 +72,12 @@ Optional modules
   any file. It can display books, images, maps, audio, movies, pdf, 3D views,
   and anything else as long as the appropriate extensions are installed.
   Or any other IIIF viewers, like [Mirador](https://gitlab.com/Daniel-KM/Omeka-S-module-Mirador).
+
+
+TODO
+----
+
+- [ ] Extract strings with pdftotext with arg -tsv and store them in a file or in database for simpler and quicker search.
 
 
 Troubleshooting
