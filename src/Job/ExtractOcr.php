@@ -31,6 +31,11 @@ class ExtractOcr extends AbstractJob
     protected $cli;
 
     /**
+     * @var \IiifSearch\View\Helper\FixUtf8|null
+     */
+    protected $fixUtf8;
+
+    /**
      * @var \Laminas\Log\Logger
      */
     protected $logger;
@@ -90,8 +95,10 @@ class ExtractOcr extends AbstractJob
     public function perform(): void
     {
         $services = $this->getServiceLocator();
-        $this->logger = $services->get('Omeka\Logger');
+        $helpers = $services->get('ViewHelperManager');
         $this->api = $services->get('Omeka\ApiManager');
+        $this->fixUtf8 = $helpers->has('FixUtf8') ?$helpers->get('FixUtf8') : null;
+        $this->logger = $services->get('Omeka\Logger');
         $this->tempFileFactory = $services->get('Omeka\File\TempFileFactory');
         $this->cli = $services->get('Omeka\Cli');
         $this->baseUri = $this->getArg('baseUri');
@@ -465,15 +472,19 @@ class ExtractOcr extends AbstractJob
         @unlink($tempFile->getTempPath());
         $tempFile->setTempPath($xmlFilepath);
 
-        $pdfFilepath = escapeshellarg($pdfFilepath);
-        $xmlFilepath = escapeshellarg($xmlFilepath);
-
-        $command = "pdftohtml -i -c -hidden -nodrm -enc 'UTF-8' -xml $pdfFilepath $xmlFilepath";
+        $command = sprintf('pdftohtml -i -c -hidden -nodrm -enc "UTF-8" -xml %1$s %2$s',
+            escapeshellarg($pdfFilepath), escapeshellarg($xmlFilepath));
 
         $result = $this->cli->execute($command);
         if ($result === false) {
             $tempFile->delete();
             return null;
+        }
+
+        if ($this->fixUtf8) {
+            $xmlContent = file_get_contents($xmlFilepath);
+            $xmlContent = $this->fixUtf8->__invoke($xmlContent);
+            file_put_contents($xmlFilepath, $xmlContent);
         }
 
         return $tempFile;
