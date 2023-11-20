@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace ExtractOcr\Form;
 
 use Laminas\Form\Element;
@@ -16,6 +17,20 @@ class ConfigForm extends Form
     public function init(): void
     {
         $this
+            ->add([
+                'name' => 'extractocr_media_type',
+                'type' => Element\Radio::class,
+                'options' => [
+                    'label' => 'Format of the xml content', // @translate
+                    'value_options' => [
+                        'application/alto+xml' => 'alto',
+                        'application/vnd.pdf2xml+xml' => 'pdf2xml',
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'extractocr_media_type',
+                ],
+            ])
             ->add([
                 'name' => 'extractocr_content_store',
                 'type' => Element\MultiCheckbox::class,

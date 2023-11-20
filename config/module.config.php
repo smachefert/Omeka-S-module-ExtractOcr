@@ -20,6 +20,7 @@ return [
     ],
     'extractocr' => [
         'config' => [
+            'extractocr_media_type' => 'application/alto+xml',
             'extractocr_content_store' => [
                 'media_xml',
             ],

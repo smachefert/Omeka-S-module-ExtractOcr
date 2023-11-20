@@ -10,17 +10,12 @@ use Omeka\File\TempFile;
 use Omeka\Job\AbstractJob;
 use Omeka\Stdlib\Message;
 use SimpleXMLElement;
+use XSLTProcessor;
 
 class ExtractOcr extends AbstractJob
 {
+    const FORMAT_ALTO = 'application/alto+xml';
     const FORMAT_PDF2XML = 'application/vnd.pdf2xml+xml';
-
-    /**
-     * Limit for the loop to avoid heavy sql requests.
-     *
-     * @var int
-     */
-    const SQL_LIMIT = 25;
 
     /**
      * @var \Omeka\Api\Manager
@@ -68,6 +63,11 @@ class ExtractOcr extends AbstractJob
     protected $language;
 
     /**
+     * @var string
+     */
+    protected $mediaType;
+
+    /**
      * @var \Omeka\Api\Representation\PropertyRepresentation|null
      */
     protected $property;
@@ -113,8 +113,19 @@ class ExtractOcr extends AbstractJob
         }
 
         $settings = $services->get('Omeka\Settings');
-        $override = $this->getArg('override');
-        $itemId = $this->getArg('itemId');
+
+        $mediaType =  $settings->get('extractocr_media_type');
+        $this->mediaType = in_array($mediaType, [self::FORMAT_ALTO, self::FORMAT_PDF2XML], true) ? $mediaType : self::FORMAT_ALTO;
+
+        if ($this->mediaType === self::FORMAT_ALTO && !class_exists('XSLTProcessor')) {
+            $this->logger->err(new Message(
+                'The php extension "xml" or "xsl" is required to extract text as xml alto.' // @translate
+            ));
+            return;
+        }
+
+        $override = (bool) $this->getArg('override');
+        $itemId = (int) $this->getArg('itemId');
         $itemIds = (string) $this->getArg('item_ids');
         if ($itemId) {
             $itemIds = trim($itemId . ' ' . $itemIds);
@@ -208,6 +219,15 @@ class ExtractOcr extends AbstractJob
             return;
         }
 
+        $formats = [
+            self::FORMAT_ALTO => 'alto',
+            self::FORMAT_PDF2XML => 'pdf2xml',
+        ];
+        $message = new Message(sprintf(
+            'Format of xml files to create: %s.', // @translate,
+            $formats[$this->mediaType]
+        ));
+
         if ($override) {
             $message = new Message(
                 'Creating Extract OCR xml files for %d PDF, xml files will be overridden or created.', // @translate
@@ -253,7 +273,7 @@ class ExtractOcr extends AbstractJob
             // Search if this item has already an xml file.
             $targetFilename = basename($pdfMedia->source(), '.pdf') . '.xml';
             // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
-            $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'xml');
+            $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'xml', $this->mediaType);
 
             ++$countPdf;
             $this->logger->info(new Message(
@@ -346,14 +366,19 @@ class ExtractOcr extends AbstractJob
      *
      * @todo Improve search of ocr pdf2xml files.
      */
-    protected function getMediaFromFilename(int $itemId, string $filename, string $extension): ?MediaRepresentation
-    {
+    protected function getMediaFromFilename(
+        int $itemId,
+        string $filename,
+        string $extension,
+        string $mediaType
+    ): ?MediaRepresentation {
         // The api search() doesn't allow to search a source, so we use read().
         try {
             return $this->api->read('media', [
                 'item' => $itemId,
                 'source' => $filename,
                 'extension' => $extension,
+                'mediaType' => $mediaType,
             ])->getContent();
         } catch (\Omeka\Api\Exception\NotFoundException $e) {
             return null;
@@ -415,7 +440,7 @@ class ExtractOcr extends AbstractJob
             'ingest_url' => $xmlStoredFile['url'],
             'o:source' => $source,
             'o:lang' => $this->language,
-            'o:media_type' => self::FORMAT_PDF2XML,
+            'o:media_type' => $this->mediaType,
             'position' => $currentPosition,
             'values_json' => '{}',
         ];
@@ -502,6 +527,22 @@ class ExtractOcr extends AbstractJob
 
         $simpleXml->saveXML($xmlFilepath);
 
+        if ($this->mediaType !== self::FORMAT_PDF2XML) {
+            /** @see https://gitlab.freedesktop.org/poppler/poppler/-/raw/master/utils/pdf2xml.dtd pdf2xml */
+            $modulePath = dirname(__DIR__, 2);
+            $xsltPath = $modulePath . '/data/xsl/pdf2xml_to_alto.xsl';
+            $dom = $this->processXslt($simpleXml, $xsltPath);
+            if (!$dom) {
+                $tempFile->delete();
+                return null;
+            }
+            $result = $dom->save($xmlFilepath);
+            if (!$result) {
+                $tempFile->delete();
+                return null;
+            }
+        }
+
         return $tempFile;
     }
 
@@ -511,6 +552,7 @@ class ExtractOcr extends AbstractJob
      * Copy in:
      * @see \ExtractOcr\Job\ExtractOcr::fixXmlDom()
      * @see \IiifSearch\View\Helper\IiifSearch::fixXmlDom()
+     * @see \IiifSearch\View\Helper\XmlAltoSingle::fixXmlDom()
      * @see \IiifServer\Iiif\TraitXml::fixXmlDom()
      */
     protected function fixXmlDom(string $xmlContent): ?SimpleXMLElement
@@ -551,14 +593,29 @@ class ExtractOcr extends AbstractJob
         // versions of pdftohtml. Exemple with pdftohtml 0.71 (debian 10):
         // <fontspec id="^C
         // <fontspec id=" " size="^P" family="PBPMTB+ArialUnicodeMS" color="#000000"/>
-        $xmlContent = preg_replace('~<fontspec id="[^>]*\n~S', '', $xmlContent) ?? $xmlContent;
         /*
-        if (preg_match('~<fontspec id="[^>]*\n~S', '', $xmlContent)) {
-            $xmlContent = preg_replace('~<fontspec id=".*\n~S', '', $xmlContent) ?? $xmlContent;
+        if (preg_match('~<fontspec id=".*>$~S', '', $xmlContent)) {
+            $xmlContent = preg_replace('~<fontspec id=".*>$~S', '', $xmlContent) ?? $xmlContent;
         }
         */
+        // Keep incomplete font specs in order to keep order of font ids.
+        $xmlContent = preg_replace('~<fontspec id="[^>]*$~S', '<fontspec/>*\n', $xmlContent) ?? $xmlContent;
         $xmlContent = str_replace('<!doctype pdf2xml system "pdf2xml.dtd">', '<!DOCTYPE pdf2xml SYSTEM "pdf2xml.dtd">', $xmlContent);
         return $xmlContent;
+    }
+
+    protected function processXslt(SimpleXMLElement $simpleXml, string $xsltPath): ?DOMDocument
+    {
+        try {
+            $domXml = dom_import_simplexml($simpleXml);
+            $domXsl = new DOMDocument('1.1', 'UTF-8');
+            $domXsl->load($xsltPath);
+            $proc = new XSLTProcessor();
+            $proc->importStyleSheet($domXsl);
+            return $proc->transformToDoc($domXml) ?: null;
+        } catch (Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -620,7 +677,7 @@ class ExtractOcr extends AbstractJob
         }
         $lastMedia->setPosition(++$key);
 
-        $lastMedia->setMediaType(self::FORMAT_PDF2XML);
+        $lastMedia->setMediaType($this->mediaType);
 
         // Flush one time to use a transaction and to avoid a duplicate issue
         // with the index item_id/position.

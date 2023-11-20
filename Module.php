@@ -71,6 +71,19 @@ class Module extends AbstractModule
         }
     }
 
+    public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $services)
+    {
+        if (version_compare((string) $oldVersion, '3.4.5', '<')) {
+            $plugins = $services->get('ControllerPluginManager');
+            $settings = $services->get('Omeka\Settings');
+            $messenger = $plugins->get('messenger');
+            $message = new Message('A new option allows to create xml as alto multi-pages.'); // @translate
+            // Default is alto on install, but pdf2xml during upgrade.
+            $settings->set('extractocr_media_type', 'application/vnd.pdf2xml+xml');
+            $messenger->addSuccess($message);
+        }
+    }
+
     /**
      * Attach listeners to events.
      *
@@ -155,6 +168,7 @@ class Module extends AbstractModule
         $params = $form->getData();
 
         $settings = $services->get('Omeka\Settings');
+        $settings->set('extractocr_media_type', $params['extractocr_media_type'] ?: 'application/alto+xml');
         $settings->set('extractocr_content_store', $params['extractocr_content_store']);
         $settings->set('extractocr_content_property', $params['extractocr_content_property']);
         $settings->set('extractocr_content_language', $params['extractocr_content_language']);
