@@ -157,6 +157,8 @@ class Module extends AbstractModule
         $settings = $services->get('Omeka\Settings');
         $settings->set('extractocr_content_store', $params['extractocr_content_store']);
         $settings->set('extractocr_content_property', $params['extractocr_content_property']);
+        $settings->set('extractocr_content_language', $params['extractocr_content_language']);
+        $settings->set('extractocr_create_empty_xml', !empty($params['extractocr_create_empty_xml']));
 
         // Form is already validated in parent.
         $params = (array) $controller->getRequest()->getPost();
