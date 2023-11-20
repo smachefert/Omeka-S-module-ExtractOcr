@@ -40,8 +40,9 @@ class Module extends AbstractModule
             );
         }
 
+        $isOldOmeka = version_compare(\Omeka\Module::VERSION, '3.1', '<');
         $baseUri = $services->get('Config')['file_store']['local']['base_uri'];
-        if (!$baseUri) {
+        if (!$baseUri && $isOldOmeka) {
             $this->setServiceLocator($services);
             $baseUri = $this->getBaseUri();
             throw new ModuleCannotInstallException(
