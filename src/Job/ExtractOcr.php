@@ -2,12 +2,14 @@
 
 namespace ExtractOcr\Job;
 
+use DOMDocument;
 use Exception;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\File\TempFile;
 use Omeka\Job\AbstractJob;
 use Omeka\Stdlib\Message;
+use SimpleXMLElement;
 
 class ExtractOcr extends AbstractJob
 {
@@ -481,13 +483,82 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
+        $xmlContent = (string) file_get_contents($xmlFilepath);
         if ($this->fixUtf8) {
-            $xmlContent = file_get_contents($xmlFilepath);
             $xmlContent = $this->fixUtf8->__invoke($xmlContent);
-            file_put_contents($xmlFilepath, $xmlContent);
         }
 
+        $xmlContent = $this->fixXmlPdf2Xml($xmlContent);
+        if (!$xmlContent) {
+            $tempFile->delete();
+            return null;
+        }
+
+        $simpleXml = $this->fixXmlDom($xmlContent);
+        if (!$simpleXml) {
+            $tempFile->delete();
+            return null;
+        }
+
+        $simpleXml->saveXML($xmlFilepath);
+
         return $tempFile;
+    }
+
+    /**
+     * Check if xml is valid.
+     *
+     * Copy in:
+     * @see \ExtractOcr\Job\ExtractOcr::fixXmlDom()
+     * @see \IiifSearch\View\Helper\IiifSearch::fixXmlDom()
+     * @see \IiifServer\Iiif\TraitXml::fixXmlDom()
+     */
+    protected function fixXmlDom(string $xmlContent): ?SimpleXMLElement
+    {
+        libxml_use_internal_errors(true);
+
+        $dom = new DOMDocument('1.1', 'UTF-8');
+        $dom->strictErrorChecking = false;
+        $dom->validateOnParse = false;
+        $dom->recover = true;
+        try {
+            $result = $dom->loadXML($xmlContent);
+            $result = $result ? simplexml_import_dom($dom) : null;
+        } catch (Exception $e) {
+            $result = null;
+        }
+
+        libxml_clear_errors();
+        libxml_use_internal_errors(false);
+
+        return $result;
+    }
+
+    /**
+     * Copy in:
+     * @see \ExtractOcr\Job\ExtractOcr::fixXmlPdf2Xml()
+     * @see \IiifSearch\View\Helper\IiifSearch::fixXmlPdf2Xml()
+     * @see \IiifServer\Iiif\TraitXml::fixXmlPdf2Xml()
+     */
+    protected function fixXmlPdf2Xml(string $xmlContent): string
+    {
+        // When the content is not a valid unicode text, a null is output.
+        // Replace all series of spaces by a single space.
+        $xmlContent = preg_replace('~\s{2,}~S', ' ', $xmlContent) ?? $xmlContent;
+        // Remove bold and italic.
+        $xmlContent = preg_replace('~</?[bi]>~S', '', $xmlContent) ?? $xmlContent;
+        // Remove fontspecs, useless for search and sometime incorrect with old
+        // versions of pdftohtml. Exemple with pdftohtml 0.71 (debian 10):
+        // <fontspec id="^C
+        // <fontspec id=" " size="^P" family="PBPMTB+ArialUnicodeMS" color="#000000"/>
+        $xmlContent = preg_replace('~<fontspec id="[^>]*\n~S', '', $xmlContent) ?? $xmlContent;
+        /*
+        if (preg_match('~<fontspec id="[^>]*\n~S', '', $xmlContent)) {
+            $xmlContent = preg_replace('~<fontspec id=".*\n~S', '', $xmlContent) ?? $xmlContent;
+        }
+        */
+        $xmlContent = str_replace('<!doctype pdf2xml system "pdf2xml.dtd">', '<!DOCTYPE pdf2xml SYSTEM "pdf2xml.dtd">', $xmlContent);
+        return $xmlContent;
     }
 
     /**
