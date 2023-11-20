@@ -536,6 +536,12 @@ class ExtractOcr extends AbstractJob
                 $tempFile->delete();
                 return null;
             }
+            // $dom->preserveWhiteSpace = true;
+            // $dom->substituteEntities = true;
+            $dom->formatOutput = false;
+            $dom->recover = true;
+            $dom->strictErrorChecking = false;
+            $dom->validateOnParse = false;
             $result = $dom->save($xmlFilepath);
             if (!$result) {
                 $tempFile->delete();

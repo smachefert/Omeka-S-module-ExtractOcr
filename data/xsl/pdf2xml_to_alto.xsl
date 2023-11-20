@@ -134,7 +134,7 @@
             </xsl:choose>
         </xsl:variable>
 
-        <TextStyle ID="{$textstyle_id}" FONTFAMILY="{$textstyle_family}" FONTSIZE="{$textstyle_size}" FONTCOLOR="{$textstyle_color}"/>
+        <TextStyle xmlns="http://www.loc.gov/standards/alto/ns-v4#" ID="{$textstyle_id}" FONTFAMILY="{$textstyle_family}" FONTSIZE="{$textstyle_size}" FONTCOLOR="{$textstyle_color}"/>
     </xsl:template>
 
     <xsl:template match="page">
@@ -144,10 +144,10 @@
         <xsl:variable name="width"><xsl:call-template name="max_width"/></xsl:variable>
         <xsl:variable name="height"><xsl:call-template name="max_height"/></xsl:variable>
         <!-- TODO Differences between print space and composed block are margins. -->
-        <Page WIDTH="{@width}" HEIGHT="{@height}" ID="{concat('PG_', position())}">
+        <Page xmlns="http://www.loc.gov/standards/alto/ns-v4#" PHYSICAL_IMG_NR="{position()}" WIDTH="{@width}" HEIGHT="{@height}" ID="{concat('PG_', position())}">
             <PrintSpace HPOS="{@left}" VPOS="{@top}" WIDTH="{@width}" HEIGHT="{@height}">
-                <ComposedBlock HPOS="{$hpos}" VPOS="{$vpos}" WIDTH="{$width}" HEIGHT="{$height}">
-                    <TextBlock HPOS="{$hpos}" VPOS="{$vpos}" WIDTH="{$width}" HEIGHT="{$height}">
+                <ComposedBlock HPOS="{$hpos}" VPOS="{$vpos}" WIDTH="{$width}" HEIGHT="{$height}" ID="{concat('CB_', position())}">
+                    <TextBlock HPOS="{$hpos}" VPOS="{$vpos}" WIDTH="{$width}" HEIGHT="{$height}" ID="{concat('TB_', position())}">
                         <xsl:apply-templates select="text"/>
                     </TextBlock>
                 </ComposedBlock>
@@ -161,7 +161,7 @@
                 <xsl:value-of select="concat('TS_', @font + 1)"/>
             </xsl:if>
         </xsl:variable>
-        <TextLine HPOS="{@left}" VPOS="{@top}" WIDTH="{@width}" HEIGHT="{@height}" STYLEREFS="{$stylerefs}" >
+        <TextLine xmlns="http://www.loc.gov/standards/alto/ns-v4#" HPOS="{@left}" VPOS="{@top}" WIDTH="{@width}" HEIGHT="{@height}" STYLEREFS="{$stylerefs}" >
             <xsl:choose>
                 <xsl:when test="contains(., ' ')">
                     <!-- The size of a character or a space is the same for all characters. -->
@@ -197,12 +197,12 @@
             <!-- The first or last character may be a space, for example after a text with an link. -->
             <xsl:choose>
                 <xsl:when test="$current_word = ''">
-                    <SP HPOS="{floor($left)}" VPOS="{floor($top)}" WIDTH="{round($size_character)}"/>
+                    <SP xmlns="http://www.loc.gov/standards/alto/ns-v4#" HPOS="{floor($left)}" VPOS="{floor($top)}" WIDTH="{round($size_character)}"/>
                 </xsl:when>
                 <xsl:otherwise>
-                    <String HPOS="{floor($left)}" VPOS="{floor($top)}" WIDTH="{round($current_width)}" HEIGHT="{ceiling($height)}" CONTENT="{$current_word}"/>
+                    <String xmlns="http://www.loc.gov/standards/alto/ns-v4#" HPOS="{floor($left)}" VPOS="{floor($top)}" WIDTH="{round($current_width)}" HEIGHT="{ceiling($height)}" CONTENT="{$current_word}"/>
                     <xsl:if test="$has_space">
-                        <SP HPOS="{floor($left + $current_width)}" VPOS="{floor($top)}" WIDTH="{round($size_character)}"/>
+                        <SP xmlns="http://www.loc.gov/standards/alto/ns-v4#" HPOS="{floor($left + $current_width)}" VPOS="{floor($top)}" WIDTH="{round($size_character)}"/>
                     </xsl:if>
                 </xsl:otherwise>
             </xsl:choose>
