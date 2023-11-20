@@ -168,7 +168,7 @@ class Module extends AbstractModule
         }
 
         $args = [];
-        $args['override'] = (bool) $params['override'];
+        $args['override'] = (bool) ($params['override'] ?? false);
         $args['baseUri'] = $this->getBaseUri();
 
         $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
