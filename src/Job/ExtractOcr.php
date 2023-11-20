@@ -421,7 +421,13 @@ class ExtractOcr extends AbstractJob
         }
 
         $content = file_get_contents($xmlTempFile->getTempPath());
-        $content = trim(strip_tags($content));
+
+        // The content can be reextracted through pdftotext, that may return a
+        // different layout with options -layout or -raw.
+        // Here, the text is extracted from the extracted pdf2xml..
+        $content = $this->mediaType === self::FORMAT_PDF2XML
+            ? trim(strip_tags($content))
+            : $this->extractTextFromAlto($content);
         if (!$this->createEmptyXml && !strlen($content)) {
             $xmlTempFile->delete();
             $this->stats['no_text_layer'][] = $pdfMedia->id();
@@ -566,6 +572,28 @@ class ExtractOcr extends AbstractJob
         }
 
         return $tempFile;
+    }
+
+    /**
+     * Extract text from alto.
+     */
+    protected function extractTextFromAlto(string $content): string
+    {
+        $simpleXml = simplexml_load_string($content);
+        $modulePath = dirname(__DIR__, 2);
+        $xsltPath = $modulePath . '/data/xsl/alto_to_text.xsl';
+        $dom = $this->processXslt($simpleXml, $xsltPath);
+        if (!$dom) {
+            return '';
+        }
+        $dom->formatOutput = false;
+        $dom->strictErrorChecking = false;
+        $dom->validateOnParse = false;
+        $dom->recover = true;
+        // $dom->preserveWhiteSpace = true;
+        // $dom->substituteEntities = true;
+        $result = (string) $dom->saveHTML();
+        return html_entity_decode($result, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5);
     }
 
     /**
