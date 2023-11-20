@@ -90,6 +90,17 @@ class ConfigForm extends Form
                 ],
             ])
             ->add([
+                'name' => 'item_ids',
+                'type' => Element\Text::class,
+                'options' => [
+                    'label' => 'Item ids', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'item_ids',
+                    'placeholder' => '2-6 8 38-52 80-', // @ translate
+                ],
+            ])
+            ->add([
                 'name' => 'process',
                 'type' => Element\Submit::class,
                 'options' => [

@@ -172,6 +172,7 @@ class Module extends AbstractModule
         $args = [];
         $args['override'] = (bool) ($params['override'] ?? false);
         $args['baseUri'] = $this->getBaseUri();
+        $args['item_ids'] = $params['item_ids'] ?? '';
 
         $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
         $job = $dispatcher->dispatch(\ExtractOcr\Job\ExtractOcr::class, $args);

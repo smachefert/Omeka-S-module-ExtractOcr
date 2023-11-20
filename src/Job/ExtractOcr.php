@@ -106,6 +106,10 @@ class ExtractOcr extends AbstractJob
         $settings = $services->get('Omeka\Settings');
         $override = $this->getArg('override');
         $itemId = $this->getArg('itemId');
+        $itemIds = (string) $this->getArg('item_ids');
+        if ($itemId) {
+            $itemIds = trim($itemId . ' ' . $itemIds);
+        }
 
         // TODO Manage the case where there are multiple pdf by item (rare).
 
@@ -131,6 +135,10 @@ class ExtractOcr extends AbstractJob
 
         $this->createEmptyXml = (bool) $settings->get('extractocr_create_empty_xml');
 
+        // It's not possible to search multiple item ids, so use the connection.
+        // SInce the job can be sent only by an admin, there is no rights issue.
+
+        /*
         // TODO The media type can be non-standard for pdf (text/pdf…) on very old servers.
         $query = [
             'media_type' => 'application/pdf',
@@ -139,17 +147,57 @@ class ExtractOcr extends AbstractJob
         if ($itemId) {
             $query['item_id'] = $itemId;
         }
-
-        /** @var \Omeka\Api\Representation\MediaRepresentation[] $medias */
         $response = $this->api->search('media', $query, ['returnScalar' => 'id']);
-        $totalToProcess = $response->getTotalResults();
+        $pdfMediaIds = $response->getContent();
+        $totalToProcess = count($pdfMediaIds);
+        */
+
+        /** @var \Doctrine\ORM\EntityManager $entityManager */
+        /*
+        $entityManager = $services->get('Omeka\EntityManager');
+        $mediaRepository = $entityManager->getRepository(\Omeka\Entity\Media::class);
+        $criteria = Criteria::create();
+        $expr = $criteria->expr();
+        $criteria
+            ->andWhere($expr->in('media_type', ['application/pdf', 'text/pdf']))
+            ->andWhere($expr->eq('extension', 'pdf'))
+            ->orderBy(['id' => 'ASC']);
+        if ($itemIds) {
+            $range = $this->exprRange('item', $itemIds);
+            if ($range) {
+                $criteria->andWhere($expr->orX(...$range));
+            }
+        }
+        $collection = $mediaRepository->matching($criteria);
+        $totalToProcess = $collection->count();
+        */
+
+        /** @var \Doctrine\DBAL\Connection $connection */
+        $connection = $services->get('Omeka\Connection');
+        $sql = 'SELECT id FROM `media` WHERE `media_type`IN (:media_type) AND `extension`= :extension';
+        $bind = [
+            'media_type' => ['application/pdf', 'text/pdf'],
+            'extension' => 'pdf',
+        ];
+        $types = [
+            'media_type' => \Doctrine\DBAL\Connection::PARAM_STR_ARRAY,
+            'extension' => \Doctrine\DBAL\ParameterType::STRING,
+        ];
+        if ($itemIds) {
+            $range = $this->exprRange('item_id', $itemIds);
+            if ($range) {
+                $sql .= ' AND ' . implode(' AND ', $range);
+            }
+        }
+        $sql .= ' ORDER BY `item_id`';
+        $pdfMediaIds = $connection->executeQuery($sql, $bind, $types)->fetchFirstColumn();
+        $totalToProcess = count($pdfMediaIds);
+
         if (empty($totalToProcess)) {
             $message = new Message('No item with a pdf to process.'); // @translate
             $this->logger->notice($message);
             return;
         }
-
-        $pdfMediaIds = $response->getContent();
 
         if ($override) {
             $message = new Message(
@@ -558,5 +606,63 @@ class ExtractOcr extends AbstractJob
             return false;
         }
         return true;
+    }
+
+    /**
+     * Create a list of doctrine expressions for a range.
+     *
+     * @param string $column
+     * @param array|string $ids
+     */
+    protected function exprRange(string $column, $ids): array
+    {
+        $ranges = $this->rangeToArray($ids);
+        if (empty($ranges)) {
+            return [];
+        }
+
+        $conditions = [];
+
+        foreach ($ranges as $range) {
+            if (strpos($range, '-') === false) {
+                $conditions[] = $column . ' = ' . (int) $range;
+            } else {
+                [$from, $to] = explode('-', $range);
+                $from = strlen($from) ? (int) $from : null;
+                $to = strlen($to) ? (int) $to : null;
+                if ($from && $to) {
+                    $conditions[] = "`$column` >= $from AND `$column` <= $to)";
+                } elseif ($from) {
+                    $conditions[] = "`$column` >= $from";
+                } elseif ($to) {
+                    $conditions[] = "`$column` <= $to";
+                }
+            }
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * Clean a list of ranges of ids.
+     *
+     * @param string|array $ids
+     */
+    protected function rangeToArray($ids): array
+    {
+        $clean = function ($str): string {
+            $str = preg_replace('/[^0-9-]/', ' ', (string) $str);
+            $str = preg_replace('/\s+/', ' ', $str);
+            return trim($str);
+        };
+
+        $ids = is_array($ids)
+            ? array_map($clean, $ids)
+            : explode(' ', $clean($ids));
+
+        // Skip empty ranges, fake ranges  and ranges with multiple "-".
+        return array_values(array_filter($ids, function ($v) {
+            return !empty($v) && $v !== '-' && substr_count($v, '-') <= 1;
+        }));
     }
 }
