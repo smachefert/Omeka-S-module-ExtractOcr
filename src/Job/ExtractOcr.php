@@ -11,6 +11,8 @@ use Omeka\Stdlib\Message;
 
 class ExtractOcr extends AbstractJob
 {
+    const FORMAT_PDF2XML = 'application/vnd.pdf2xml+xml';
+
     /**
      * Limit for the loop to avoid heavy sql requests.
      *
@@ -356,6 +358,7 @@ class ExtractOcr extends AbstractJob
             'ingest_url' => $xmlStoredFile['url'],
             'o:source' => $source,
             'o:lang' => $this->language,
+            'o:media_type' => self::FORMAT_PDF2XML,
             'position' => $currentPosition,
             'values_json' => '{}',
         ];
@@ -486,6 +489,8 @@ class ExtractOcr extends AbstractJob
             }
         }
         $lastMedia->setPosition(++$key);
+
+        $lastMedia->setMediaType(self::FORMAT_PDF2XML);
 
         // Flush one time to use a transaction and to avoid a duplicate issue
         // with the index item_id/position.
