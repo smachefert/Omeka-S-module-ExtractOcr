@@ -78,6 +78,11 @@ class ExtractOcr extends AbstractJob
     ];
 
     /**
+     * @var array
+     */
+    protected $stats = [];
+
+    /**
      * @brief Attach attracted ocr data from pdf with item
      */
     public function perform(): void
@@ -161,17 +166,23 @@ class ExtractOcr extends AbstractJob
         $countSkipped = 0;
         $countFailed = 0;
         $countProcessed = 0;
+        $this->stats = [
+            'no_pdf' => [],
+            'no_text_layer' => [],
+            'issue' => [],
+        ];
+
         foreach ($pdfMediaIds as $pdfMediaId) {
             if ($this->shouldStop()) {
                 if ($override) {
                     $this->logger->warn(new Message(
-                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d failed.', // @translate
-                        $countProcessed, $totalToProcess, $countFailed
+                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d failed (%4$d without file, %5$d without text layer, %6$d with issue).', // @translate
+                        $countProcessed, $totalToProcess, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
                     ));
                 } else {
                     $this->logger->warn(new Message(
-                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d skipped, %4$d failed.', // @translate
-                        $countProcessed, $totalToProcess, $countSkipped, $countFailed
+                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d skipped, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
+                        $countProcessed, $totalToProcess, $countSkipped, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
                     ));
                 }
                 return;
@@ -233,15 +244,39 @@ class ExtractOcr extends AbstractJob
             unset($item);
         }
 
+        if ($this->stats['no_pdf']) {
+            $message = new Message(sprintf(
+                'These medias have no pdf file: #%s', // @translate
+                implode(', #', $this->stats['no_pdf'])
+            ));
+            $this->logger->notice($message);
+        }
+
+        if ($this->stats['no_text_layer']) {
+            $message = new Message(sprintf(
+                'These pdf files have no text layer: #%s', // @translate
+                implode(', #', $this->stats['no_text_layer'])
+            ));
+            $this->logger->notice($message);
+        }
+
+        if ($this->stats['issue']) {
+            $message = new Message(sprintf(
+                'These pdf files have issues when extracting content: #%s', // @translate
+                implode(', #', $this->stats['issue'])
+            ));
+            $this->logger->notice($message);
+        }
+
         if ($override) {
             $message = new Message(
-                'Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed.', // @translate
-                $countPdf, $totalToProcess, $countProcessed, $countFailed
+                'Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
+                $countPdf, $totalToProcess, $countProcessed, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
             );
         } else {
             $message = new Message(
-                'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created, %5$d failed.', // @translate
-                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $countFailed
+                'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created, %5$d failed (%6$d without file, %7$d without text layer, %8$d with issue).', // @translate
+                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $countFailed , count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
             );
         }
         $this->logger->notice($message);
@@ -274,6 +309,7 @@ class ExtractOcr extends AbstractJob
     {
         $pdfFilepath = $this->basePath . '/original/' . $pdfMedia->filename();
         if (!file_exists($pdfFilepath)) {
+            $this->stats['no_pdf'][] = $pdfMedia->id();
             $this->logger->err(new Message('Missing pdf file (media #%1$d).', $pdfMedia->id())); // @translate
             return null;
         }
@@ -281,6 +317,7 @@ class ExtractOcr extends AbstractJob
         // Do the conversion of the pdf to xml.
         $xmlTempFile = $this->pdfToText($pdfFilepath);
         if (empty($xmlTempFile)) {
+            $this->stats['issue'][] = $pdfMedia->id();
             $this->logger->err(new Message('Xml file was not created for media #%1$s.', $pdfMedia->id())); // @translate
             return null;
         }
@@ -289,6 +326,7 @@ class ExtractOcr extends AbstractJob
         $content = trim(strip_tags($content));
         if (!$this->createEmptyXml && !strlen($content)) {
             $xmlTempFile->delete();
+            $this->stats['no_text_layer'][] = $pdfMedia->id();
             $this->logger->notice(new Message(
                 'The xml for pdf #%1$d has no text content and is not created.', // @translate
                 $pdfMedia->id()
