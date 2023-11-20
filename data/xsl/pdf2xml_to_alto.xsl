@@ -156,10 +156,65 @@
     </xsl:template>
 
     <xsl:template match="text">
-        <TextLine HPOS="{@left}" VPOS="{@top}" WIDTH="{@width}" HEIGHT="{@height}" STYLEREFS="{concat('TS_', @font + 1)}" >
-            <String HPOS="{@left}" VPOS="{@top}" WIDTH="{@width}" HEIGHT="{@height}" CONTENT="{.}"/>
-            <!-- TODO Explode and add spaces (SP). -->
+        <xsl:variable name="stylerefs">
+            <xsl:if test="@font and @font != ''">
+                <xsl:value-of select="concat('TS_', @font + 1)"/>
+            </xsl:if>
+        </xsl:variable>
+        <TextLine HPOS="{@left}" VPOS="{@top}" WIDTH="{@width}" HEIGHT="{@height}" STYLEREFS="{$stylerefs}" >
+            <xsl:choose>
+                <xsl:when test="contains(., ' ')">
+                    <!-- The size of a character or a space is the same for all characters. -->
+                    <!-- TODO Adapt character and space size to the font family or at least for common size. -->
+                    <xsl:apply-templates select="." mode="split">
+                        <xsl:with-param name="string" select="."/>
+                        <xsl:with-param name="left" select="@left"/>
+                        <xsl:with-param name="top" select="@top"/>
+                        <xsl:with-param name="width" select="@width"/>
+                        <xsl:with-param name="height" select="@height"/>
+                        <xsl:with-param name="size_character" select="@width div string-length(.)"/>
+                    </xsl:apply-templates>
+                </xsl:when>
+                <xsl:otherwise>
+                    <String HPOS="{@left}" VPOS="{@top}" WIDTH="{@width}" HEIGHT="{@height}" CONTENT="{.}"/>
+                </xsl:otherwise>
+            </xsl:choose>
         </TextLine>
+    </xsl:template>
+
+    <xsl:template match="text" name="split" mode="split">
+        <xsl:param name="string" select="."/>
+        <xsl:param name="left" select="0"/>
+        <xsl:param name="top" select="0"/>
+        <xsl:param name="width" select="0"/>
+        <xsl:param name="height" select="0"/>
+        <xsl:param name="size_character" select="0"/>
+        <!-- `round(0.5)` returns the next integer (1), and the character size is at least 1 pixel, so no need to check for 0. -->
+        <xsl:if test="string-length($string) > 0">
+            <xsl:variable name="has_space" select="contains($string, ' ')"/>
+            <xsl:variable name="current_word" select="substring-before(concat($string, ' '), ' ')"/>
+            <xsl:variable name="current_width" select="string-length($current_word) * $size_character"/>
+            <!-- The first or last character may be a space, for example after a text with an link. -->
+            <xsl:choose>
+                <xsl:when test="$current_word = ''">
+                    <SP HPOS="{floor($left)}" VPOS="{floor($top)}" WIDTH="{round($size_character)}"/>
+                </xsl:when>
+                <xsl:otherwise>
+                    <String HPOS="{floor($left)}" VPOS="{floor($top)}" WIDTH="{round($current_width)}" HEIGHT="{ceiling($height)}" CONTENT="{$current_word}"/>
+                    <xsl:if test="$has_space">
+                        <SP HPOS="{floor($left + $current_width)}" VPOS="{floor($top)}" WIDTH="{round($size_character)}"/>
+                    </xsl:if>
+                </xsl:otherwise>
+            </xsl:choose>
+            <xsl:call-template name="split">
+                <xsl:with-param name="string" select="substring-after($string, ' ')"/>
+                <xsl:with-param name="left" select="$left + (string-length($current_word) + $has_space) * $size_character"/>
+                <xsl:with-param name="top" select="$top"/>
+                <xsl:with-param name="width" select="$width"/>
+                <xsl:with-param name="height" select="$height"/>
+                <xsl:with-param name="size_character" select="$size_character"/>
+            </xsl:call-template>
+        </xsl:if>
     </xsl:template>
 
     <xsl:template name="min_left">
