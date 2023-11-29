@@ -2,25 +2,21 @@
 
 namespace ExtractOcr\Job;
 
+use DateTime;
+use DOMDocument;
+use Exception;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\File\TempFile;
 use Omeka\Job\AbstractJob;
 use Omeka\Stdlib\Message;
+use SimpleXMLElement;
+use XSLTProcessor;
 
 class ExtractOcr extends AbstractJob
 {
-    /**
-     * Limit for the loop to avoid heavy sql requests.
-     *
-     * @var int
-     */
-    const SQL_LIMIT = 25;
-
-    /**
-     * @var \Laminas\Log\Logger
-     */
-    protected $logger;
+    const FORMAT_ALTO = 'application/alto+xml';
+    const FORMAT_PDF2XML = 'application/vnd.pdf2xml+xml';
 
     /**
      * @var \Omeka\Api\Manager
@@ -28,14 +24,24 @@ class ExtractOcr extends AbstractJob
     protected $api;
 
     /**
-     * @var \Omeka\File\TempFileFactory
-     */
-    protected $tempFileFactory;
-
-    /**
      * @var \Omeka\Stdlib\Cli
      */
     protected $cli;
+
+    /**
+     * @var \IiifSearch\View\Helper\FixUtf8|null
+     */
+    protected $fixUtf8;
+
+    /**
+     * @var \Laminas\Log\Logger
+     */
+    protected $logger;
+
+    /**
+     * @var \Omeka\File\TempFileFactory
+     */
+    protected $tempFileFactory;
 
     /**
      * @var string
@@ -48,6 +54,36 @@ class ExtractOcr extends AbstractJob
     protected $baseUri;
 
     /**
+     * @var bool
+     */
+    protected $createEmptyXml;
+
+    /**
+     * @var string
+     */
+    protected $language;
+
+    /**
+     * @var string
+     */
+    protected $mediaType;
+
+    /**
+     * @var \Omeka\Api\Representation\PropertyRepresentation|null
+     */
+    protected $property;
+
+    /**
+     * @var array
+     */
+    protected $contentValue;
+
+    /**
+     * @var array
+     */
+    protected $dataPdf;
+
+    /**
      * @var array
      */
     protected $store = [
@@ -57,24 +93,9 @@ class ExtractOcr extends AbstractJob
     ];
 
     /**
-     * @var \Omeka\Api\Representation\PropertyRepresentation|null
-     */
-    protected $property;
-
-    /**
-     * @var string
-     */
-    protected $language;
-
-    /**
-     * @var bool
-     */
-    protected $createEmptyXml;
-
-    /**
      * @var array
      */
-    protected $contentValue;
+    protected $stats = [];
 
     /**
      * @brief Attach attracted ocr data from pdf with item
@@ -82,8 +103,10 @@ class ExtractOcr extends AbstractJob
     public function perform(): void
     {
         $services = $this->getServiceLocator();
-        $this->logger = $services->get('Omeka\Logger');
+        $helpers = $services->get('ViewHelperManager');
         $this->api = $services->get('Omeka\ApiManager');
+        $this->fixUtf8 = $helpers->has('FixUtf8') ?$helpers->get('FixUtf8') : null;
+        $this->logger = $services->get('Omeka\Logger');
         $this->tempFileFactory = $services->get('Omeka\File\TempFileFactory');
         $this->cli = $services->get('Omeka\Cli');
         $this->baseUri = $this->getArg('baseUri');
@@ -96,8 +119,23 @@ class ExtractOcr extends AbstractJob
         }
 
         $settings = $services->get('Omeka\Settings');
-        $override = $this->getArg('override');
-        $itemId = $this->getArg('itemId');
+
+        $mediaType =  $settings->get('extractocr_media_type');
+        $this->mediaType = in_array($mediaType, [self::FORMAT_ALTO, self::FORMAT_PDF2XML], true) ? $mediaType : self::FORMAT_ALTO;
+
+        if ($this->mediaType === self::FORMAT_ALTO && !class_exists('XSLTProcessor')) {
+            $this->logger->err(new Message(
+                'The php extension "xml" or "xsl" is required to extract text as xml alto.' // @translate
+            ));
+            return;
+        }
+
+        $override = (bool) $this->getArg('override');
+        $itemId = (int) $this->getArg('itemId');
+        $itemIds = (string) $this->getArg('item_ids');
+        if ($itemId) {
+            $itemIds = trim($itemId . ' ' . $itemIds);
+        }
 
         // TODO Manage the case where there are multiple pdf by item (rare).
 
@@ -123,7 +161,11 @@ class ExtractOcr extends AbstractJob
 
         $this->createEmptyXml = (bool) $settings->get('extractocr_create_empty_xml');
 
-        // TODO The media type can be non-standard for pdf (text/pdf…) on old servers.
+        // It's not possible to search multiple item ids, so use the connection.
+        // SInce the job can be sent only by an admin, there is no rights issue.
+
+        /*
+        // TODO The media type can be non-standard for pdf (text/pdf…) on very old servers.
         $query = [
             'media_type' => 'application/pdf',
             'extension' => 'pdf',
@@ -131,28 +173,77 @@ class ExtractOcr extends AbstractJob
         if ($itemId) {
             $query['item_id'] = $itemId;
         }
-
-        /** @var \Omeka\Api\Representation\MediaRepresentation[] $medias */
         $response = $this->api->search('media', $query, ['returnScalar' => 'id']);
-        $totalToProcess = $response->getTotalResults();
+        $pdfMediaIds = $response->getContent();
+        $totalToProcess = count($pdfMediaIds);
+        */
+
+        /** @var \Doctrine\ORM\EntityManager $entityManager */
+        /*
+        $entityManager = $services->get('Omeka\EntityManager');
+        $mediaRepository = $entityManager->getRepository(\Omeka\Entity\Media::class);
+        $criteria = Criteria::create();
+        $expr = $criteria->expr();
+        $criteria
+            ->andWhere($expr->in('media_type', ['application/pdf', 'text/pdf']))
+            ->andWhere($expr->eq('extension', 'pdf'))
+            ->orderBy(['id' => 'ASC']);
+        if ($itemIds) {
+            $range = $this->exprRange('item', $itemIds);
+            if ($range) {
+                $criteria->andWhere($expr->orX(...$range));
+            }
+        }
+        $collection = $mediaRepository->matching($criteria);
+        $totalToProcess = $collection->count();
+        */
+
+        /** @var \Doctrine\DBAL\Connection $connection */
+        $connection = $services->get('Omeka\Connection');
+        $sql = 'SELECT id FROM `media` WHERE `media_type`IN (:media_type) AND `extension`= :extension';
+        $bind = [
+            'media_type' => ['application/pdf', 'text/pdf'],
+            'extension' => 'pdf',
+        ];
+        $types = [
+            'media_type' => \Doctrine\DBAL\Connection::PARAM_STR_ARRAY,
+            'extension' => \Doctrine\DBAL\ParameterType::STRING,
+        ];
+        if ($itemIds) {
+            $range = $this->exprRange('item_id', $itemIds);
+            if ($range) {
+                $sql .= ' AND ' . implode(' AND ', $range);
+            }
+        }
+        $sql .= ' ORDER BY `item_id`';
+        $pdfMediaIds = $connection->executeQuery($sql, $bind, $types)->fetchFirstColumn();
+        $totalToProcess = count($pdfMediaIds);
+
         if (empty($totalToProcess)) {
-            $message = new Message('No item with a pdf to process.'); // @translate,
+            $message = new Message('No item with a pdf to process.'); // @translate
             $this->logger->notice($message);
             return;
         }
 
-        $pdfMediaIds = $response->getContent();
+        $formats = [
+            self::FORMAT_ALTO => 'alto',
+            self::FORMAT_PDF2XML => 'pdf2xml',
+        ];
+        $message = new Message(sprintf(
+            'Format of xml files to create: %s.', // @translate,
+            $formats[$this->mediaType]
+        ));
 
         if ($override) {
-            $message = new Message(sprintf(
-                'Creating Extract OCR xml files for %s PDF, xml files will be overridden or created.', // @translate,
+            $message = new Message(
+                'Creating Extract OCR xml files for %d PDF, xml files will be overridden or created.', // @translate
                 $totalToProcess
-            ));
+            );
         } else {
-            $message = new Message(sprintf(
-                'Creating Extract OCR xml files for %s PDF, without overriding existing xml.', // @translate,
+            $message = new Message(
+                'Creating Extract OCR xml files for %d PDF, without overriding existing xml.', // @translate
                 $totalToProcess
-            ));
+            );
         }
         $this->logger->info($message);
 
@@ -160,17 +251,23 @@ class ExtractOcr extends AbstractJob
         $countSkipped = 0;
         $countFailed = 0;
         $countProcessed = 0;
+        $this->stats = [
+            'no_pdf' => [],
+            'no_text_layer' => [],
+            'issue' => [],
+        ];
+
         foreach ($pdfMediaIds as $pdfMediaId) {
             if ($this->shouldStop()) {
                 if ($override) {
                     $this->logger->warn(new Message(
-                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d failed.', // @translate
-                        $countProcessed, $totalToProcess, $countFailed
+                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d failed (%4$d without file, %5$d without text layer, %6$d with issue).', // @translate
+                        $countProcessed, $totalToProcess, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
                     ));
                 } else {
                     $this->logger->warn(new Message(
-                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d skipped, %4$d failed.', // @translate
-                        $countProcessed, $totalToProcess, $countSkipped, $countFailed
+                        'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d skipped, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
+                        $countProcessed, $totalToProcess, $countSkipped, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
                     ));
                 }
                 return;
@@ -182,19 +279,31 @@ class ExtractOcr extends AbstractJob
             // Search if this item has already an xml file.
             $targetFilename = basename($pdfMedia->source(), '.pdf') . '.xml';
             // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
-            $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'xml');
+            $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'xml', $this->mediaType);
 
             ++$countPdf;
-            $this->logger->info(sprintf('Index #%1$d/%2$d: Extracting OCR for item #%3$d, media #%4$d "%5$s".', // @translate
-                $countPdf, $totalToProcess, $item->id(), $pdfMedia->id(), $pdfMedia->source()));
+            $this->logger->info(new Message(
+                'Index #%1$d/%2$d: Extracting OCR for item #%3$d, media #%4$d "%5$s".', // @translate
+                $countPdf, $totalToProcess, $item->id(), $pdfMedia->id(), $pdfMedia->source())
+            );
 
             if ($override) {
                 if ($searchXmlFile) {
-                    $this->api->delete('media', $searchXmlFile->id());
-                    $this->logger->info('The existing XML was removed.'); // @translate
+                    try {
+                        $this->api->delete('media', $searchXmlFile->id());
+                    } catch (Exception $e) {
+                        // There may be a doctrine issue with module Access, but media is removed.
+                    }
+                    $this->logger->info(
+                        new Message('The existing XML was removed for item #%d.', // @translate
+                        $item->id())
+                    );
                 }
             } elseif ($searchXmlFile) {
-                $this->logger->info('An XML file already exists and override is not set. Item is skipped.'); // @translate
+                $this->logger->info(new Message(
+                    'An XML file (media #%1$d) already exists and override is not set. Item #%2$d is skipped.',  // @translate
+                    $searchXmlFile->id(), $item->id())
+                );
                 ++$countSkipped;
                 continue;
             }
@@ -202,8 +311,10 @@ class ExtractOcr extends AbstractJob
             $this->contentValue = null;
             $xmlMedia = $this->extractOcrForMedia($pdfMedia);
             if ($xmlMedia) {
-                $this->logger->info(sprintf('Media #%1$d created for xml file.', // @translate
-                    $xmlMedia->id()));
+                $this->logger->info(new Message(
+                    'Media #%1$d (item #%2$d) created for xml file.', // @translate
+                    $xmlMedia->id(), $item->id())
+                );
                 if ($this->store['item']) {
                     $this->storeContentInProperty($item);
                 }
@@ -218,68 +329,110 @@ class ExtractOcr extends AbstractJob
             unset($item);
         }
 
+        if ($this->stats['no_pdf']) {
+            $message = new Message(sprintf(
+                'These medias have no pdf file: #%s', // @translate
+                implode(', #', $this->stats['no_pdf'])
+            ));
+            $this->logger->notice($message);
+        }
+
+        if ($this->stats['no_text_layer']) {
+            $message = new Message(sprintf(
+                'These pdf files have no text layer: #%s', // @translate
+                implode(', #', $this->stats['no_text_layer'])
+            ));
+            $this->logger->notice($message);
+        }
+
+        if ($this->stats['issue']) {
+            $message = new Message(sprintf(
+                'These pdf files have issues when extracting content: #%s', // @translate
+                implode(', #', $this->stats['issue'])
+            ));
+            $this->logger->notice($message);
+        }
+
         if ($override) {
-            $message = new Message(sprintf(
-                'Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed.', // @translate,
-                $countPdf, $totalToProcess, $countProcessed, $countFailed
-            ));
+            $message = new Message(
+                'Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
+                $countPdf, $totalToProcess, $countProcessed, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+            );
         } else {
-            $message = new Message(sprintf(
-                'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created, %5$d failed.', // @translate,
-                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $countFailed
-            ));
+            $message = new Message(
+                'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created, %5$d failed (%6$d without file, %7$d without text layer, %8$d with issue).', // @translate
+                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $countFailed , count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+            );
         }
         $this->logger->notice($message);
     }
 
     /**
-     * Get a media from item id, source name and extension.
+     * Get the first media from item id, source name and extension.
      *
      * @todo Improve search of ocr pdf2xml files.
-     *
-     * @param int $itemId
-     * @param string $filename
-     * @param string $extension
-     * @return MediaRepresentation|null
      */
-    protected function getMediaFromFilename($itemId, $filename, $extension)
-    {
+    protected function getMediaFromFilename(
+        int $itemId,
+        string $filename,
+        string $extension,
+        string $mediaType
+    ): ?MediaRepresentation {
         // The api search() doesn't allow to search a source, so we use read().
         try {
             return $this->api->read('media', [
                 'item' => $itemId,
                 'source' => $filename,
                 'extension' => $extension,
+                'mediaType' => $mediaType,
             ])->getContent();
         } catch (\Omeka\Api\Exception\NotFoundException $e) {
+            return null;
         }
-        return null;
     }
 
     /**
      * @param MediaRepresentation $pdfMedia
      * @return MediaRepresentation|null The xml media.
      */
-    protected function extractOcrForMedia(MediaRepresentation $pdfMedia)
+    protected function extractOcrForMedia(MediaRepresentation $pdfMedia): ?MediaRepresentation
     {
         $pdfFilepath = $this->basePath . '/original/' . $pdfMedia->filename();
         if (!file_exists($pdfFilepath)) {
-            $this->logger->err(sprintf('Missing pdf file (media #%1$d).', $pdfMedia->id())); // @translate
+            $this->stats['no_pdf'][] = $pdfMedia->id();
+            $this->logger->err(new Message('Missing pdf file (media #%1$d).', $pdfMedia->id())); // @translate
             return null;
         }
+
+        $this->dataPdf = [
+            'source_pdf_file_url' => $pdfMedia->originalUrl(),
+            'source_pdf_file_name' => $pdfMedia->filename(),
+            'source_pdf_file_identifier' => (string) $pdfMedia->value('dcterms:identifier') ?: '',
+            'source_pdf_document_url' => $pdfMedia->item()->apiUrl(),
+            'source_pdf_document_identifier' => (string) $pdfMedia->item()->value('dcterms:identifier') ?: '',
+        ];
 
         // Do the conversion of the pdf to xml.
         $xmlTempFile = $this->pdfToText($pdfFilepath);
         if (empty($xmlTempFile)) {
-            $this->logger->err(sprintf('Xml file was not created for media #%1$s.', $pdfMedia->id())); // @translate
+            $this->stats['issue'][] = $pdfMedia->id();
+            $this->logger->err(new Message('Xml file was not created for media #%1$s.', $pdfMedia->id())); // @translate
             return null;
         }
 
         $content = file_get_contents($xmlTempFile->getTempPath());
-        $content = trim(strip_tags($content));
+
+        // The content can be reextracted through pdftotext, that may return a
+        // different layout with options -layout or -raw.
+        // Here, the text is extracted from the extracted pdf2xml..
+        $content = $this->mediaType === self::FORMAT_PDF2XML
+            ? trim(strip_tags($content))
+            : $this->extractTextFromAlto($content);
         if (!$this->createEmptyXml && !strlen($content)) {
             $xmlTempFile->delete();
-            $this->logger->notice(new Message('The xml for pdf #%1$d has no text content and is not created.', // @translate
+            $this->stats['no_text_layer'][] = $pdfMedia->id();
+            $this->logger->notice(new Message(
+                'The xml for pdf #%1$d has no text content and is not created.', // @translate
                 $pdfMedia->id()
             ));
             return null;
@@ -307,6 +460,7 @@ class ExtractOcr extends AbstractJob
             'ingest_url' => $xmlStoredFile['url'],
             'o:source' => $source,
             'o:lang' => $this->language,
+            'o:media_type' => $this->mediaType,
             'position' => $currentPosition,
             'values_json' => '{}',
         ];
@@ -338,7 +492,7 @@ class ExtractOcr extends AbstractJob
             // Generally a bad or missing pdf file.
             $this->logger->err($e->getMessage() ?: $e);
             return null;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->logger->err($e);
             return null;
         } finally {
@@ -346,32 +500,27 @@ class ExtractOcr extends AbstractJob
             @unlink($xmlStoredFile['filepath']);
         }
 
-        // Move the xml file as the last media to avoid thumbnails issues.
-        if ($media) {
-            $this->reorderMedias($media);
-            return $media;
+        if (!$media) {
+            return null;
         }
 
-        return null;
+        // Move the xml file as the last media to avoid thumbnails issues.
+        $this->reorderMediasAndSetType($media);
+        return $media;
     }
 
     /**
      * Extract and store OCR Data from pdf in .xml file
-     *
-     * @param string $pdfFilepath
-     * @return \Omeka\File\TempFile|null
      */
-    protected function pdfToText($pdfFilepath)
+    protected function pdfToText(string $pdfFilepath): ?TempFile
     {
         $tempFile = $this->tempFileFactory->build();
         $xmlFilepath = $tempFile->getTempPath() . '.xml';
         @unlink($tempFile->getTempPath());
         $tempFile->setTempPath($xmlFilepath);
 
-        $pdfFilepath = escapeshellarg($pdfFilepath);
-        $xmlFilepath = escapeshellarg($xmlFilepath);
-
-        $command = "pdftohtml -i -c -hidden -nodrm -xml $pdfFilepath $xmlFilepath";
+        $command = sprintf('pdftohtml -i -c -hidden -nodrm -enc "UTF-8" -xml %1$s %2$s',
+            escapeshellarg($pdfFilepath), escapeshellarg($xmlFilepath));
 
         $result = $this->cli->execute($command);
         if ($result === false) {
@@ -379,7 +528,145 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
+        $xmlContent = (string) file_get_contents($xmlFilepath);
+        if ($this->fixUtf8) {
+            $xmlContent = $this->fixUtf8->__invoke($xmlContent);
+        }
+
+        $xmlContent = $this->fixXmlPdf2Xml($xmlContent);
+        if (!$xmlContent) {
+            $tempFile->delete();
+            return null;
+        }
+
+        $simpleXml = $this->fixXmlDom($xmlContent);
+        if (!$simpleXml) {
+            $tempFile->delete();
+            return null;
+        }
+
+        $simpleXml->saveXML($xmlFilepath);
+
+        if ($this->mediaType !== self::FORMAT_PDF2XML) {
+            /** @see https://gitlab.freedesktop.org/poppler/poppler/-/raw/master/utils/pdf2xml.dtd pdf2xml */
+            $modulePath = dirname(__DIR__, 2);
+            $xsltPath = $modulePath . '/data/xsl/pdf2xml_to_alto.xsl';
+            $args = $this->dataPdf;
+            $args['datetime'] = (new DateTime('now'))->format('Y-m-d\TH:i:s');
+            $dom = $this->processXslt($simpleXml, $xsltPath, $args);
+            if (!$dom) {
+                $tempFile->delete();
+                return null;
+            }
+            $dom->formatOutput = true;
+            $dom->strictErrorChecking = false;
+            $dom->validateOnParse = false;
+            $dom->recover = true;
+            $dom->preserveWhiteSpace = false;
+            $dom->substituteEntities = true;
+            $result = $dom->save($xmlFilepath);
+            if (!$result) {
+                $tempFile->delete();
+                return null;
+            }
+        }
+
         return $tempFile;
+    }
+
+    /**
+     * Extract text from alto.
+     */
+    protected function extractTextFromAlto(string $content): string
+    {
+        $simpleXml = simplexml_load_string($content);
+        $modulePath = dirname(__DIR__, 2);
+        $xsltPath = $modulePath . '/data/xsl/alto_to_text.xsl';
+        $dom = $this->processXslt($simpleXml, $xsltPath);
+        if (!$dom) {
+            return '';
+        }
+        $dom->formatOutput = false;
+        $dom->strictErrorChecking = false;
+        $dom->validateOnParse = false;
+        $dom->recover = true;
+        // $dom->preserveWhiteSpace = true;
+        // $dom->substituteEntities = true;
+        $result = (string) $dom->saveHTML();
+        return html_entity_decode($result, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5);
+    }
+
+    /**
+     * Check if xml is valid.
+     *
+     * Copy in:
+     * @see \ExtractOcr\Job\ExtractOcr::fixXmlDom()
+     * @see \IiifSearch\View\Helper\IiifSearch::fixXmlDom()
+     * @see \IiifSearch\View\Helper\XmlAltoSingle::fixXmlDom()
+     * @see \IiifServer\Iiif\TraitXml::fixXmlDom()
+     */
+    protected function fixXmlDom(string $xmlContent): ?SimpleXMLElement
+    {
+        libxml_use_internal_errors(true);
+
+        $dom = new DOMDocument('1.1', 'UTF-8');
+        $dom->strictErrorChecking = false;
+        $dom->validateOnParse = false;
+        $dom->recover = true;
+        try {
+            $result = $dom->loadXML($xmlContent);
+            $result = $result ? simplexml_import_dom($dom) : null;
+        } catch (Exception $e) {
+            $result = null;
+        }
+
+        libxml_clear_errors();
+        libxml_use_internal_errors(false);
+
+        return $result;
+    }
+
+    /**
+     * Copy in:
+     * @see \ExtractOcr\Job\ExtractOcr::fixXmlPdf2Xml()
+     * @see \IiifSearch\View\Helper\IiifSearch::fixXmlPdf2Xml()
+     * @see \IiifServer\Iiif\TraitXml::fixXmlPdf2Xml()
+     */
+    protected function fixXmlPdf2Xml(string $xmlContent): string
+    {
+        // When the content is not a valid unicode text, a null is output.
+        // Replace all series of spaces by a single space.
+        $xmlContent = preg_replace('~\s{2,}~S', ' ', $xmlContent) ?? $xmlContent;
+        // Remove bold and italic.
+        $xmlContent = preg_replace('~</?[bi]>~S', '', $xmlContent) ?? $xmlContent;
+        // Remove fontspecs, useless for search and sometime incorrect with old
+        // versions of pdftohtml. Exemple with pdftohtml 0.71 (debian 10):
+        // <fontspec id="^C
+        // <fontspec id=" " size="^P" family="PBPMTB+ArialUnicodeMS" color="#000000"/>
+        /*
+        if (preg_match('~<fontspec id=".*>$~S', '', $xmlContent)) {
+            $xmlContent = preg_replace('~<fontspec id=".*>$~S', '', $xmlContent) ?? $xmlContent;
+        }
+        */
+        // Keep incomplete font specs in order to keep order of font ids.
+        $xmlContent = preg_replace('~<fontspec id="[^>]*$~S', '<fontspec/>*\n', $xmlContent) ?? $xmlContent;
+        $xmlContent = str_replace('<!doctype pdf2xml system "pdf2xml.dtd">', '<!DOCTYPE pdf2xml SYSTEM "pdf2xml.dtd">', $xmlContent);
+        return $xmlContent;
+    }
+
+    protected function processXslt(SimpleXMLElement $simpleXml, string $xsltPath, array $params = []): ?DOMDocument
+    {
+        try {
+            $domXml = dom_import_simplexml($simpleXml);
+            $domXsl = new DOMDocument('1.1', 'UTF-8');
+            $domXsl->load($xsltPath);
+            $proc = new XSLTProcessor();
+            $proc->importStyleSheet($domXsl);
+            $proc->setParameter('', $params);
+            return $proc->transformToDoc($domXml) ?: null;
+        } catch (Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -416,10 +703,8 @@ class ExtractOcr extends AbstractJob
      * @see \CSVImport\Job\Import::reorderMedias()
      *
      * @todo Move this process in the core.
-     *
-     * @param MediaRepresentation $media
      */
-    protected function reorderMedias(MediaRepresentation $media): void
+    protected function reorderMediasAndSetType(MediaRepresentation $media): void
     {
         // Note: the position is not available in representation.
 
@@ -443,6 +728,8 @@ class ExtractOcr extends AbstractJob
         }
         $lastMedia->setPosition(++$key);
 
+        $lastMedia->setMediaType($this->mediaType);
+
         // Flush one time to use a transaction and to avoid a duplicate issue
         // with the index item_id/position.
         $entityManager->flush();
@@ -454,12 +741,8 @@ class ExtractOcr extends AbstractJob
      * @see \DerivativeMedia\Module::makeTempFileDownloadable()
      * @see \Ebook\Mvc\Controller\Plugin\Ebook::saveFile()
      * @see \ExtractOcr\Job\ExtractOcr::makeTempFileDownloadable()
-     *
-     * @param TempFile $source
-     * @param string $base
-     * @return array|null
      */
-    protected function makeTempFileDownloadable(TempFile $tempFile, $base = '')
+    protected function makeTempFileDownloadable(TempFile $tempFile, string $base = ''): ?array
     {
         $baseDestination = '/temp';
         $destinationDir = $this->basePath . $baseDestination . $base;
@@ -499,11 +782,8 @@ class ExtractOcr extends AbstractJob
 
     /**
      * Check or create the destination folder.
-     *
-     * @param string $dirPath
-     * @return bool
      */
-    protected function checkDir($dirPath)
+    protected function checkDir(string $dirPath): bool
     {
         if (!file_exists($dirPath)) {
             if (!is_writeable($this->basePath)) {
@@ -516,5 +796,63 @@ class ExtractOcr extends AbstractJob
             return false;
         }
         return true;
+    }
+
+    /**
+     * Create a list of doctrine expressions for a range.
+     *
+     * @param string $column
+     * @param array|string $ids
+     */
+    protected function exprRange(string $column, $ids): array
+    {
+        $ranges = $this->rangeToArray($ids);
+        if (empty($ranges)) {
+            return [];
+        }
+
+        $conditions = [];
+
+        foreach ($ranges as $range) {
+            if (strpos($range, '-') === false) {
+                $conditions[] = $column . ' = ' . (int) $range;
+            } else {
+                [$from, $to] = explode('-', $range);
+                $from = strlen($from) ? (int) $from : null;
+                $to = strlen($to) ? (int) $to : null;
+                if ($from && $to) {
+                    $conditions[] = "`$column` >= $from AND `$column` <= $to)";
+                } elseif ($from) {
+                    $conditions[] = "`$column` >= $from";
+                } elseif ($to) {
+                    $conditions[] = "`$column` <= $to";
+                }
+            }
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * Clean a list of ranges of ids.
+     *
+     * @param string|array $ids
+     */
+    protected function rangeToArray($ids): array
+    {
+        $clean = function ($str): string {
+            $str = preg_replace('/[^0-9-]/', ' ', (string) $str);
+            $str = preg_replace('/\s+/', ' ', $str);
+            return trim($str);
+        };
+
+        $ids = is_array($ids)
+            ? array_map($clean, $ids)
+            : explode(' ', $clean($ids));
+
+        // Skip empty ranges, fake ranges  and ranges with multiple "-".
+        return array_values(array_filter($ids, function ($v) {
+            return !empty($v) && $v !== '-' && substr_count($v, '-') <= 1;
+        }));
     }
 }

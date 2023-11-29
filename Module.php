@@ -40,8 +40,9 @@ class Module extends AbstractModule
             );
         }
 
+        $isOldOmeka = version_compare(\Omeka\Module::VERSION, '3.1', '<');
         $baseUri = $services->get('Config')['file_store']['local']['base_uri'];
-        if (!$baseUri) {
+        if (!$baseUri && $isOldOmeka) {
             $this->setServiceLocator($services);
             $baseUri = $this->getBaseUri();
             throw new ModuleCannotInstallException(
@@ -68,6 +69,19 @@ class Module extends AbstractModule
         $config = $config['extractocr']['config'];
         foreach (array_keys($config) as $name) {
             $settings->delete($name);
+        }
+    }
+
+    public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $services)
+    {
+        if (version_compare((string) $oldVersion, '3.4.5', '<')) {
+            $plugins = $services->get('ControllerPluginManager');
+            $settings = $services->get('Omeka\Settings');
+            $messenger = $plugins->get('messenger');
+            $message = new Message('A new option allows to create xml as alto multi-pages.'); // @translate
+            // Default is alto on install, but pdf2xml during upgrade.
+            $settings->set('extractocr_media_type', 'application/vnd.pdf2xml+xml');
+            $messenger->addSuccess($message);
         }
     }
 
@@ -155,8 +169,11 @@ class Module extends AbstractModule
         $params = $form->getData();
 
         $settings = $services->get('Omeka\Settings');
+        $settings->set('extractocr_media_type', $params['extractocr_media_type'] ?: 'application/alto+xml');
         $settings->set('extractocr_content_store', $params['extractocr_content_store']);
         $settings->set('extractocr_content_property', $params['extractocr_content_property']);
+        $settings->set('extractocr_content_language', $params['extractocr_content_language']);
+        $settings->set('extractocr_create_empty_xml', !empty($params['extractocr_create_empty_xml']));
 
         // Form is already validated in parent.
         $params = (array) $controller->getRequest()->getPost();
@@ -168,8 +185,9 @@ class Module extends AbstractModule
         }
 
         $args = [];
-        $args['override'] = (bool) $params['override'];
+        $args['override'] = (bool) ($params['override'] ?? false);
         $args['baseUri'] = $this->getBaseUri();
+        $args['item_ids'] = $params['item_ids'] ?? '';
 
         $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
         $job = $dispatcher->dispatch(\ExtractOcr\Job\ExtractOcr::class, $args);

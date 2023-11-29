@@ -1,0 +1,261 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-11-20 00:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: Module.php:32
+msgid ""
+"The pdftotext command-line utility is not installed. pdftotext must be "
+"installed to install this plugin."
+msgstr ""
+
+#: Module.php:39
+msgid ""
+"The temporary directory \"files/temp\" is not writeable. Fix rights or "
+"create it manually."
+msgstr ""
+
+#: Module.php:50
+#, php-format
+msgid ""
+"The base uri \"%s\" is not set in the config file of Omeka \"config/local."
+"config.php\". It must be set for technical reasons for now."
+msgstr ""
+
+#: Module.php:147
+msgid "Options are used during edition of items and for bulk processing."
+msgstr ""
+
+#: Module.php:148
+msgid ""
+"The insertion of the text in the item properties is currently not supported."
+msgstr ""
+
+#: Module.php:149
+msgid "XML files will be rebuilt for all PDF files of your Omeka install."
+msgstr ""
+
+#: Module.php:180
+msgid "Process"
+msgstr ""
+
+#: Module.php:309
+msgid ""
+"The base uri is not set (key [file_store][local][base_uri]) in the config "
+"file of Omeka \"config/local.config.php\". It must be set for now (key "
+"[file_store][local][base_uri]) in order to process background jobs."
+msgstr ""
+
+#: Module.php:81
+msgid "A new option allows to create xml as alto multi-pages."
+msgstr ""
+
+#: Module.php:181
+msgid "No job launched."
+msgstr ""
+
+#: Module.php:195
+#, php-format
+msgid ""
+"Creating Extract OCR files in background (job %1$s#%2$s%3$s, %4$slogs%3$s)."
+msgstr ""
+
+#: Module.php:260
+msgid "Extracting OCR in background."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:135
+msgid ""
+"The php extension \"xml\" or \"xsl\" is required to extract text as xml alto."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:164
+msgid "The option to store text is set, but no property is defined."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:230
+msgid "No item with a pdf to process."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:240
+#, php-format
+msgid "Format of xml files to create: %s."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:246
+#, php-format
+msgid ""
+"Creating Extract OCR xml files for %d PDF, xml files will be overridden or "
+"created."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:251
+#, php-format
+msgid ""
+"Creating Extract OCR xml files for %d PDF, without overriding existing xml."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:271
+#, php-format
+msgid ""
+"The job \"Extract OCR\" was stopped: %1$d/%2$d resources processed, %3$d "
+"failed (%4$d without file, %5$d without text layer, %6$d with issue)."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:276
+#, php-format
+msgid ""
+"The job \"Extract OCR\" was stopped: %1$d/%2$d resources processed, %3$d "
+"skipped, %4$d failed (%5$d without file, %6$d without text layer, %7$d with "
+"issue)."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:293
+#, php-format
+msgid "Index #%1$d/%2$d: Extracting OCR for item #%3$d, media #%4$d \"%5$s\"."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:305
+#, php-format
+msgid "The existing XML was removed for item #%d."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:311
+#, php-format
+msgid ""
+"An XML file (media #%1$d) already exists and override is not set. Item #%2$d "
+"is skipped."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:322
+#, php-format
+msgid "Media #%1$d (item #%2$d) created for xml file."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:341
+#, php-format
+msgid "These medias have no pdf file: #%s"
+msgstr ""
+
+#: src/Job/ExtractOcr.php:349
+#, php-format
+msgid "These pdf files have no text layer: #%s"
+msgstr ""
+
+#: src/Job/ExtractOcr.php:357
+#, php-format
+msgid "These pdf files have issues when extracting content: #%s"
+msgstr ""
+
+#: src/Job/ExtractOcr.php:365
+#, php-format
+msgid ""
+"Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed (%5$d "
+"without file, %6$d without text layer, %7$d with issue)."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:370
+#, php-format
+msgid ""
+"Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created, %5$d "
+"failed (%6$d without file, %7$d without text layer, %8$d with issue)."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:405
+#, php-format
+msgid "Missing pdf file (media #%1$d)."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:421
+#, php-format
+msgid "Xml file was not created for media #%1$s."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:431
+#, php-format
+msgid "The xml for pdf #%1$d has no text content and is not created."
+msgstr ""
+
+#: src/Job/ExtractOcr.php:733
+#, php-format
+msgid ""
+"File cannot be saved in temporary directory \"%1$s\" (temp file: \"%2$s\")"
+msgstr ""
+
+#: src/Job/ExtractOcr.php:758
+#, php-format
+msgid "Temporary destination for XML can not be created : %1$s"
+msgstr ""
+
+#: src/Form/ConfigForm.php:24
+msgid "Format of the xml content"
+msgstr ""
+
+#: src/Form/ConfigForm.php:39
+msgid "Store the raw text in a property of a resource"
+msgstr ""
+
+#: src/Form/ConfigForm.php:40
+msgid "Text cannot be stored in item when an item is manually edited."
+msgstr ""
+
+#: src/Form/ConfigForm.php:44
+msgid "Pdf media"
+msgstr ""
+
+#: src/Form/ConfigForm.php:45
+msgid "Xml media"
+msgstr ""
+
+#: src/Form/ConfigForm.php:56
+msgid "Property to save pdf raw text"
+msgstr ""
+
+#: src/Form/ConfigForm.php:57
+msgid ""
+"To save content makes it searchable anywhere. It is recommended to use "
+"\"bibo:content\". Note that it will increase the noise in the results, "
+"unless you use a search engine."
+msgstr ""
+
+#: src/Form/ConfigForm.php:64
+msgid "Select a media property…"
+msgstr ""
+
+#: src/Form/ConfigForm.php:71
+msgid "Language code of the content"
+msgstr ""
+
+#: src/Form/ConfigForm.php:81
+msgid "Create xml file even if there is no text content"
+msgstr ""
+
+#: src/Form/ConfigForm.php:92
+msgid "Extract OCR job"
+msgstr ""
+
+#: src/Form/ConfigForm.php:102
+msgid "Extract OCR even if the XML file already exists"
+msgstr ""
+
+#: src/Form/ConfigForm.php:112
+msgid "Item ids"
+msgstr ""
+
+#: src/Form/ConfigForm.php:123
+msgid "Run in background"
+msgstr ""
