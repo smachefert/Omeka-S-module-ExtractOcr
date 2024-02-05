@@ -21,9 +21,8 @@ return [
     'extractocr' => [
         'config' => [
             'extractocr_media_type' => 'application/alto+xml',
-            'extractocr_content_store' => [
-                'media_xml',
-            ],
+            // Don't set a default option to avoid issue with config form.
+            'extractocr_content_store' => [],
             'extractocr_content_property' => 'bibo:content',
             'extractocr_content_language' => '',
             'extractocr_create_empty_xml' => false,
