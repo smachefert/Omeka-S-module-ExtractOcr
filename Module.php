@@ -181,7 +181,7 @@ class Module extends AbstractModule
         $settings->set('extractocr_content_store', $data['extractocr_content_store']);
         $settings->set('extractocr_content_property', $data['extractocr_content_property']);
         $settings->set('extractocr_content_language', $data['extractocr_content_language']);
-        $settings->set('extractocr_create_empty_xml', !empty($data['extractocr_create_empty_xml']));
+        $settings->set('extractocr_create_empty_file', !empty($data['extractocr_create_empty_file']));
 
         // Keep only values used in job.
         $params = array_intersect_key($params->getArrayCopy(), [

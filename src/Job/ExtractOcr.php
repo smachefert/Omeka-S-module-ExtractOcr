@@ -56,7 +56,7 @@ class ExtractOcr extends AbstractJob
     /**
      * @var bool
      */
-    protected $createEmptyXml;
+    protected $createEmptyFile;
 
     /**
      * @var string
@@ -159,7 +159,7 @@ class ExtractOcr extends AbstractJob
             }
         }
 
-        $this->createEmptyXml = (bool) $settings->get('extractocr_create_empty_xml');
+        $this->createEmptyFile = (bool) $settings->get('extractocr_create_empty_file');
 
         // It's not possible to search multiple item ids, so use the connection.
         // SInce the job can be sent only by an admin, there is no rights issue.
@@ -438,11 +438,13 @@ class ExtractOcr extends AbstractJob
 
         // The content can be reextracted through pdftotext, that may return a
         // different layout with options -layout or -raw.
-        // Here, the text is extracted from the extracted pdf2xml..
+        // Here, the text is extracted from the extracted pdf2xml.
         $content = $this->mediaType === self::FORMAT_PDF2XML
             ? trim(strip_tags($content))
             : $this->extractTextFromAlto($content);
-        if (!$this->createEmptyXml && !strlen($content)) {
+        if (!$this->createEmptyFile
+            && !strlen($content)
+        ) {
             $xmlTempFile->delete();
             $this->stats['no_text_layer'][] = $pdfMedia->id();
             $this->logger->notice(new Message(

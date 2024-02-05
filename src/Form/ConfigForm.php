@@ -74,13 +74,14 @@ class ConfigForm extends Form
                 ],
             ])
             ->add([
-                'name' => 'extractocr_create_empty_xml',
+                'name' => 'extractocr_create_empty_file',
                 'type' => Element\Checkbox::class,
                 'options' => [
                     'label' => 'Create xml file even if there is no text content', // @translate
+                    'info' => 'This option may be useful to keep the same order and number of pages and extracted texts.', // @translate
                 ],
                 'attributes' => [
-                    'id' => 'extractocr_create_empty_xml',
+                    'id' => 'extractocr_create_empty_file',
                 ],
             ])
 
