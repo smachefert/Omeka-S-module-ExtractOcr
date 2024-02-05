@@ -605,7 +605,21 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
-        $xmlContent = (string) file_get_contents($xmlFilepath);
+        // Remove control characters from bad ocr.
+        /** @see https://stackoverflow.com/questions/1497885/remove-control-characters-from-php-string */
+        $content = file_get_contents($xmlFilepath);
+        $content = preg_replace('/[^\PCc^\PCn^\PCs]/u', '', $content);
+        $xml = simplexml_load_string($content, null,
+            LIBXML_BIGLINES
+            | LIBXML_COMPACT
+            | LIBXML_NOBLANKS
+            | LIBXML_PARSEHUGE
+            // | LIBXML_NOCDATA
+            // | LIBXML_NOENT
+            // Avoid issue when network is unavailable?
+            // | LIBXML_NONET
+        );
+
         if ($this->fixUtf8) {
             $xmlContent = $this->fixUtf8->__invoke($xmlContent);
         }
@@ -679,7 +693,20 @@ class ExtractOcr extends AbstractJob
             return false;
         }
 
-        $xml = simplexml_load_file($xmlFilepath);
+        // Remove control characters from bad ocr.
+        /** @see https://stackoverflow.com/questions/1497885/remove-control-characters-from-php-string */
+        $content = file_get_contents($xmlFilepath);
+        $content = preg_replace('/[^\PCc^\PCn^\PCs]/u', '', $content);
+        $xml = simplexml_load_string($content, null,
+            LIBXML_BIGLINES
+            | LIBXML_COMPACT
+            | LIBXML_NOBLANKS
+            | LIBXML_PARSEHUGE
+            // | LIBXML_NOCDATA
+            // | LIBXML_NOENT
+            // Avoid issue when network is unavailable.
+            // | LIBXML_NONET
+        );
 
         if ($xml === false) {
             return false;
