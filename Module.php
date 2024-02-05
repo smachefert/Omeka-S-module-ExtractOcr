@@ -11,7 +11,6 @@ use Laminas\ServiceManager\ServiceLocatorInterface;
 use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Module\AbstractModule;
 use Omeka\Module\Exception\ModuleCannotInstallException;
-use Omeka\Settings\SettingsInterface;
 use Omeka\Stdlib\Message;
 
 class Module extends AbstractModule
@@ -23,6 +22,8 @@ class Module extends AbstractModule
 
     public function install(ServiceLocatorInterface $services): void
     {
+        $this->setServiceLocator($services);
+
         $t = $services->get('MvcTranslator');
 
         // Don't install if the pdftotext command doesn't exist.
@@ -59,7 +60,8 @@ class Module extends AbstractModule
         foreach ($config as $name => $value) {
             $settings->set($name, $value);
         }
-        $this->allowXML($services->get('Omeka\Settings'));
+
+        $this->allowFileFormats();
     }
 
     public function uninstall(ServiceLocatorInterface $services): void
@@ -83,6 +85,8 @@ class Module extends AbstractModule
             $settings->set('extractocr_media_type', 'application/vnd.pdf2xml+xml');
             $messenger->addSuccess($message);
         }
+
+        $this->allowFileFormats();
     }
 
     /**
@@ -105,24 +109,26 @@ class Module extends AbstractModule
     }
 
     /**
-     * Allow XML's extension and media type in omeka's settings
-     *
-     * @param SettingsInterface
+     * Allow XML extensions and media types in omeka settings.
      */
-    protected function allowXML(SettingsInterface $settings): void
+    protected function allowFileFormats(): void
     {
+        $settings = $this->getServiceLocator()->get('Omeka\Settings');
+
         $extensionWhitelist = $settings->get('extension_whitelist', []);
-        $xmlExtensions = [
+        $extensions = [
             'xml',
         ];
-        $extensionWhitelist = array_unique(array_merge($extensionWhitelist, $xmlExtensions));
+        $extensionWhitelist = array_unique(array_merge($extensionWhitelist, $extensions));
         $settings->set('extension_whitelist', $extensionWhitelist);
 
         $mediaTypeWhitelist = $settings->get('media_type_whitelist');
         $xmlMediaTypes = [
             'application/xml',
             'text/xml',
+            'application/alto+xml',
             'application/vnd.pdf2xml+xml',
+            'application/x-empty',
         ];
         $mediaTypeWhitelist = array_unique(array_merge($mediaTypeWhitelist, $xmlMediaTypes));
         $settings->set('media_type_whitelist', $mediaTypeWhitelist);
@@ -130,6 +136,8 @@ class Module extends AbstractModule
 
     public function getConfigForm(PhpRenderer $renderer)
     {
+        $this->allowFileFormats();
+
         $services = $this->getServiceLocator();
         $settings = $services->get('Omeka\Settings');
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
