@@ -214,7 +214,9 @@ class Module extends AbstractModule
             '</a>',
             sprintf(
                 '<a href="%s">',
-                htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log']))
+                class_exists('Log\Module')
+                    ? htmlspecialchars($controller->url()->fromRoute('admin/default', ['controller' => 'log'], ['query' => ['job_id' => $job->getId()]]))
+                    : htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log']))
             )
         );
         $message->setEscapeHtml(false);
