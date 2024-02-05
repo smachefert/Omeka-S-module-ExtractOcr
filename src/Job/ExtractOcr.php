@@ -215,7 +215,7 @@ class ExtractOcr extends AbstractJob
                 $sql .= ' AND ' . implode(' AND ', $range);
             }
         }
-        $sql .= ' ORDER BY `item_id`';
+        $sql .= ' ORDER BY `item_id` ASC';
         $pdfMediaIds = $connection->executeQuery($sql, $bind, $types)->fetchFirstColumn();
         $totalToProcess = count($pdfMediaIds);
 
