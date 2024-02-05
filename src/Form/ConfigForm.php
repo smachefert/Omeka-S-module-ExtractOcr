@@ -23,6 +23,7 @@ class ConfigForm extends Form
                 'options' => [
                     'label' => 'Format of the xml content', // @translate
                     'value_options' => [
+                        'text/tab-separated-values' => 'tsv',
                         'application/alto+xml' => 'alto',
                         'application/vnd.pdf2xml+xml' => 'pdf2xml',
                     ],

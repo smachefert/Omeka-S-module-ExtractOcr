@@ -108,7 +108,7 @@ class Module extends AbstractModule
     }
 
     /**
-     * Allow XML extensions and media types in omeka settings.
+     * Allow TSV and XML extensions and media types in omeka settings.
      */
     protected function allowFileFormats(): void
     {
@@ -116,6 +116,7 @@ class Module extends AbstractModule
 
         $extensionWhitelist = $settings->get('extension_whitelist', []);
         $extensions = [
+            'tsv',
             'xml',
         ];
         $extensionWhitelist = array_unique(array_merge($extensionWhitelist, $extensions));
@@ -128,6 +129,7 @@ class Module extends AbstractModule
             'application/alto+xml',
             'application/vnd.pdf2xml+xml',
             'application/x-empty',
+            'text/tab-separated-values',
         ];
         $mediaTypeWhitelist = array_unique(array_merge($mediaTypeWhitelist, $xmlMediaTypes));
         $settings->set('media_type_whitelist', $mediaTypeWhitelist);
@@ -234,25 +236,34 @@ class Module extends AbstractModule
         /** @var \Omeka\Entity\Item $item */
         $item = $response->getContent();
 
+        $settings = $this->getServiceLocator()->get('Omeka\Settings');
+        $targetMediaType = $settings->get('extractocr_media_type') ?? 'application/alto+xml';
+        $targetExtension = $targetMediaType === 'text/tab-separated-values' ? '.tsv' : '.xml';
+
         $hasPdf = false;
         $targetFilename = null;
         /** @var \Omeka\Entity\Media $media */
         foreach ($item->getMedia() as $media) {
-            if (strtolower((string) $media->getExtension()) === 'pdf'
-                && $media->getMediaType() === 'application/pdf'
-            ) {
+            $mediaType = $media->getMediaType();
+            $extension = strtolower((string) $media->getExtension());
+            if ($mediaType === 'application/pdf' && $extension === 'pdf') {
                 $hasPdf = true;
                 $source = (string) $media->getSource();
                 $filename = (string) parse_url($source, PHP_URL_PATH);
                 $targetFilename = strlen($filename)
                     ? basename($filename, '.pdf')
                     : $media->id() . '-' . $media->getStorageId();
-                $targetFilename .= '.xml';
+                $targetFilename .= $targetExtension;
                 break;
             }
         }
 
-        if (!$hasPdf || $targetFilename === '.xml') {
+        if (!$hasPdf || $targetFilename === '.tsv' || $targetFilename === '.xml') {
+            return;
+        }
+
+        // Don't override an already processed pdf when updating an item.
+        if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'tsv')) {
             return;
         }
 
