@@ -135,7 +135,7 @@ class ExtractOcr extends AbstractJob
                 self::FORMAT_TSV
             ], true)
             ? $mediaType
-            : self::FORMAT_ALTO;
+            : self::FORMAT_TSV;
 
         if ($this->targetMediaType === self::FORMAT_ALTO && !class_exists('XSLTProcessor')) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);

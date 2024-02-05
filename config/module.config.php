@@ -20,7 +20,7 @@ return [
     ],
     'extractocr' => [
         'config' => [
-            'extractocr_media_type' => 'application/alto+xml',
+            'extractocr_media_type' => 'text/tab-separated-values',
             // Don't set a default option to avoid issue with config form.
             'extractocr_content_store' => [],
             'extractocr_content_property' => 'bibo:content',

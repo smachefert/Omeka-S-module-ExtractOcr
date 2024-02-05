@@ -179,7 +179,7 @@ class Module extends AbstractModule
         $data = $form->getData();
 
         $settings = $services->get('Omeka\Settings');
-        $settings->set('extractocr_media_type', $data['extractocr_media_type'] ?: 'application/alto+xml');
+        $settings->set('extractocr_media_type', $data['extractocr_media_type'] ?: 'text/tab-separated-values');
         $settings->set('extractocr_content_store', $data['extractocr_content_store']);
         $settings->set('extractocr_content_property', $data['extractocr_content_property']);
         $settings->set('extractocr_content_language', $data['extractocr_content_language']);
@@ -237,7 +237,7 @@ class Module extends AbstractModule
         $item = $response->getContent();
 
         $settings = $this->getServiceLocator()->get('Omeka\Settings');
-        $targetMediaType = $settings->get('extractocr_media_type') ?? 'application/alto+xml';
+        $targetMediaType = $settings->get('extractocr_media_type') ?? 'text/tab-separated-values';
         $targetExtension = $targetMediaType === 'text/tab-separated-values' ? '.tsv' : '.xml';
 
         $hasPdf = false;
