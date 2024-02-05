@@ -75,13 +75,23 @@ class Module extends AbstractModule
 
     public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $services)
     {
+        $this->setServiceLocator($services);
+
+        $plugins = $services->get('ControllerPluginManager');
+        $settings = $services->get('Omeka\Settings');
+        $messenger = $plugins->get('messenger');
+
         if (version_compare((string) $oldVersion, '3.4.5', '<')) {
-            $plugins = $services->get('ControllerPluginManager');
-            $settings = $services->get('Omeka\Settings');
-            $messenger = $plugins->get('messenger');
             $message = new Message('A new option allows to create xml as alto multi-pages.'); // @translate
             // Default is alto on install, but pdf2xml during upgrade.
             $settings->set('extractocr_media_type', 'application/vnd.pdf2xml+xml');
+            $messenger->addSuccess($message);
+        }
+
+        if (version_compare((string) $oldVersion, '3.4.6', '<')) {
+            $settings->set('extractocr_create_empty_file', $settings->get('extractocr_create_empty_xml', false));
+            $settings->delete('extractocr_create_empty_xml');
+            $message = new Message('A new option allows to export OCR into tsv format for quicker search results. Data should be reindexed with format TSV.'); // @translate
             $messenger->addSuccess($message);
         }
 
