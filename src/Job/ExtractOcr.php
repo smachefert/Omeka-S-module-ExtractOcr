@@ -130,7 +130,7 @@ class ExtractOcr extends AbstractJob
             return;
         }
 
-        $override = (bool) $this->getArg('override');
+        $mode = $this->getArg('mode') ?: 'all';
         $itemId = (int) $this->getArg('itemId');
         $itemIds = (string) $this->getArg('item_ids');
         if ($itemId) {
@@ -234,16 +234,27 @@ class ExtractOcr extends AbstractJob
             $formats[$this->mediaType]
         ));
 
-        if ($override) {
+        if ($mode === 'existing') {
+            $message = new Message(
+                'Creating Extract OCR xml files for %d PDF only if they already exist.', // @translate
+                $totalToProcess
+            );
+        } elseif ($mode === 'missing') {
+            $message = new Message(
+                'Creating Extract OCR xml files for %d PDF, only if they do not exist yet.', // @translate
+                $totalToProcess
+            );
+        } elseif ($mode === 'all') {
             $message = new Message(
                 'Creating Extract OCR xml files for %d PDF, xml files will be overridden or created.', // @translate
                 $totalToProcess
             );
         } else {
             $message = new Message(
-                'Creating Extract OCR xml files for %d PDF, without overriding existing xml.', // @translate
-                $totalToProcess
+                'Mode of extraction "%s" is not managed.', // @translate
+                $mode
             );
+            return;
         }
         $this->logger->info($message);
 
@@ -259,7 +270,7 @@ class ExtractOcr extends AbstractJob
 
         foreach ($pdfMediaIds as $pdfMediaId) {
             if ($this->shouldStop()) {
-                if ($override) {
+                if ($mode === 'all') {
                     $this->logger->warn(new Message(
                         'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d failed (%4$d without file, %5$d without text layer, %6$d with issue).', // @translate
                         $countProcessed, $totalToProcess, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
@@ -287,7 +298,7 @@ class ExtractOcr extends AbstractJob
                 $countPdf, $totalToProcess, $item->id(), $pdfMedia->id(), $pdfMedia->source())
             );
 
-            if ($override) {
+            if ($mode === 'all' || $mode === 'existing') {
                 if ($searchXmlFile) {
                     try {
                         $this->api->delete('media', $searchXmlFile->id());
@@ -298,10 +309,13 @@ class ExtractOcr extends AbstractJob
                         new Message('The existing XML was removed for item #%d.', // @translate
                         $item->id())
                     );
+                } elseif ($mode === 'existing') {
+                    ++$countSkipped;
+                    continue;
                 }
             } elseif ($searchXmlFile) {
                 $this->logger->info(new Message(
-                    'An XML file (media #%1$d) already exists and override is not set. Item #%2$d is skipped.',  // @translate
+                    'An XML file (media #%1$d) already exists, so item #%2$d is skipped.',  // @translate
                     $searchXmlFile->id(), $item->id())
                 );
                 ++$countSkipped;
@@ -353,7 +367,7 @@ class ExtractOcr extends AbstractJob
             $this->logger->notice($message);
         }
 
-        if ($override) {
+        if ($mode === 'all') {
             $message = new Message(
                 'Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
                 $countPdf, $totalToProcess, $countProcessed, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])

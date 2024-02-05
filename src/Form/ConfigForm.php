@@ -95,13 +95,19 @@ class ConfigForm extends Form
 
         $this->get('extractocr_extractor')
             ->add([
-                'name' => 'override',
-                'type' => Element\Checkbox::class,
+                'name' => 'mode',
+                'type' => Element\Radio::class,
                 'options' => [
-                    'label' => 'Extract OCR even if the XML file already exists', // @translate
+                    'label' => 'Extract OCR job', // @translate
+                    'value_options' => [
+                        'existing' => 'Only already extracted (improve extraction)', // @translate
+                        'missing' => 'Only missing extracted medias', // @translate
+                        'all' => 'All medias', // @translate
+                    ],
                 ],
                 'attributes' => [
-                    'id' => 'override',
+                    'id' => 'mode',
+                    'value' => 'all',
                 ],
             ])
             ->add([

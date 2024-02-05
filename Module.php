@@ -157,6 +157,7 @@ class Module extends AbstractModule
         $services = $this->getServiceLocator();
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
 
+        /** @var \Laminas\Stdlib\Parameters $params */
         $params = $controller->getRequest()->getPost();
 
         $form->init();
@@ -166,18 +167,21 @@ class Module extends AbstractModule
             return false;
         }
 
-        $params = $form->getData();
+        $data = $form->getData();
 
         $settings = $services->get('Omeka\Settings');
-        $settings->set('extractocr_media_type', $params['extractocr_media_type'] ?: 'application/alto+xml');
-        $settings->set('extractocr_content_store', $params['extractocr_content_store']);
-        $settings->set('extractocr_content_property', $params['extractocr_content_property']);
-        $settings->set('extractocr_content_language', $params['extractocr_content_language']);
-        $settings->set('extractocr_create_empty_xml', !empty($params['extractocr_create_empty_xml']));
+        $settings->set('extractocr_media_type', $data['extractocr_media_type'] ?: 'application/alto+xml');
+        $settings->set('extractocr_content_store', $data['extractocr_content_store']);
+        $settings->set('extractocr_content_property', $data['extractocr_content_property']);
+        $settings->set('extractocr_content_language', $data['extractocr_content_language']);
+        $settings->set('extractocr_create_empty_xml', !empty($data['extractocr_create_empty_xml']));
 
-        // Form is already validated in parent.
-        $params = (array) $controller->getRequest()->getPost();
-        $params = array_intersect_key($params, ['override' => null, 'process' => null]);
+        // Keep only values used in job.
+        $params = array_intersect_key($params->getArrayCopy(), [
+            'mode' => 'all',
+            'item_ids' => '',
+            'process' => null,
+        ]);
         if (empty($params['process']) || $params['process'] !== $controller->translate('Process')) {
             $message = 'No job launched.'; // @translate
             $controller->messenger()->addWarning($message);
@@ -185,7 +189,7 @@ class Module extends AbstractModule
         }
 
         $args = [];
-        $args['override'] = (bool) ($params['override'] ?? false);
+        $args['mode'] = $params['mode'] ?? 'all';
         $args['baseUri'] = $this->getBaseUri();
         $args['item_ids'] = $params['item_ids'] ?? '';
 
@@ -249,7 +253,7 @@ class Module extends AbstractModule
         }
 
         $params = [
-            'override' => false,
+            'mode' => 'missing',
             'baseUri' => $this->getBaseUri(),
             'itemId' => $item->getId(),
             // FIXME Currently impossible to save text with event api.update.post;
