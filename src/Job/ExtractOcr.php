@@ -105,7 +105,7 @@ class ExtractOcr extends AbstractJob
         $services = $this->getServiceLocator();
         $helpers = $services->get('ViewHelperManager');
         $this->api = $services->get('Omeka\ApiManager');
-        $this->fixUtf8 = $helpers->has('FixUtf8') ?$helpers->get('FixUtf8') : null;
+        $this->fixUtf8 = $helpers->has('FixUtf8') ? $helpers->get('FixUtf8') : null;
         $this->logger = $services->get('Omeka\Logger');
         $this->tempFileFactory = $services->get('Omeka\File\TempFileFactory');
         $this->cli = $services->get('Omeka\Cli');
@@ -120,7 +120,7 @@ class ExtractOcr extends AbstractJob
 
         $settings = $services->get('Omeka\Settings');
 
-        $mediaType =  $settings->get('extractocr_media_type');
+        $mediaType = $settings->get('extractocr_media_type');
         $this->mediaType = in_array($mediaType, [self::FORMAT_ALTO, self::FORMAT_PDF2XML], true) ? $mediaType : self::FORMAT_ALTO;
 
         if ($this->mediaType === self::FORMAT_ALTO && !class_exists('XSLTProcessor')) {
@@ -273,12 +273,12 @@ class ExtractOcr extends AbstractJob
                 if ($mode === 'all') {
                     $this->logger->warn(new Message(
                         'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d failed (%4$d without file, %5$d without text layer, %6$d with issue).', // @translate
-                        $countProcessed, $totalToProcess, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+                        $countProcessed, $totalToProcess, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
                     ));
                 } else {
                     $this->logger->warn(new Message(
                         'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d skipped, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
-                        $countProcessed, $totalToProcess, $countSkipped, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+                        $countProcessed, $totalToProcess, $countSkipped, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
                     ));
                 }
                 return;
@@ -370,12 +370,12 @@ class ExtractOcr extends AbstractJob
         if ($mode === 'all') {
             $message = new Message(
                 'Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
-                $countPdf, $totalToProcess, $countProcessed, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+                $countPdf, $totalToProcess, $countProcessed, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
             );
         } else {
             $message = new Message(
                 'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created, %5$d failed (%6$d without file, %7$d without text layer, %8$d with issue).', // @translate
-                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $countFailed , count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
             );
         }
         $this->logger->notice($message);

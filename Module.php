@@ -3,7 +3,6 @@
 namespace ExtractOcr;
 
 use ExtractOcr\Form\ConfigForm;
-use ExtractOcr\Job\ExtractOcr;
 use Laminas\EventManager\Event;
 use Laminas\EventManager\SharedEventManagerInterface;
 use Laminas\Mvc\Controller\AbstractController;
