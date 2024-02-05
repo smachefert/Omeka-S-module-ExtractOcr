@@ -434,7 +434,14 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
-        $content = file_get_contents($xmlTempFile->getTempPath());
+        $tempPath = $xmlTempFile->getTempPath();
+
+        // A check is done when option "create empty file" is not used.
+        if (!$tempPath || !file_exists($tempPath)) {
+            return null;
+        }
+
+        $content = file_get_contents($tempPath);
 
         // The content can be reextracted through pdftotext, that may return a
         // different layout with options -layout or -raw.
@@ -534,13 +541,16 @@ class ExtractOcr extends AbstractJob
         $xmlFilepath = $tempFile->getTempPath() . '.xml';
         @unlink($tempFile->getTempPath());
         $tempFile->setTempPath($xmlFilepath);
+        $tempPath = $tempFile->getTempPath();
 
         $command = sprintf('pdftohtml -i -c -hidden -nodrm -enc "UTF-8" -xml %1$s %2$s',
             escapeshellarg($pdfFilepath), escapeshellarg($xmlFilepath));
 
         $result = $this->cli->execute($command);
         if ($result === false) {
-            $tempFile->delete();
+            if ($tempPath && file_exists($tempPath)) {
+                $tempFile->delete();
+            }
             return null;
         }
 
@@ -551,13 +561,17 @@ class ExtractOcr extends AbstractJob
 
         $xmlContent = $this->fixXmlPdf2Xml($xmlContent);
         if (!$xmlContent) {
-            $tempFile->delete();
+            if ($tempPath && file_exists($tempPath)) {
+                $tempFile->delete();
+            }
             return null;
         }
 
         $simpleXml = $this->fixXmlDom($xmlContent);
         if (!$simpleXml) {
-            $tempFile->delete();
+            if ($tempPath && file_exists($tempPath)) {
+                $tempFile->delete();
+            }
             return null;
         }
 
@@ -582,7 +596,9 @@ class ExtractOcr extends AbstractJob
             $dom->substituteEntities = true;
             $result = $dom->save($xmlFilepath);
             if (!$result) {
-                $tempFile->delete();
+                if ($tempPath && file_exists($tempPath)) {
+                    $tempFile->delete();
+                }
                 return null;
             }
         }
