@@ -349,7 +349,7 @@ class Module extends AbstractModule
     protected function checkDir($dirPath)
     {
         if (!file_exists($dirPath)) {
-            if (!is_writeable(basename($dirPath))) {
+            if (!is_writeable(dirname($dirPath))) {
                 return false;
             }
             @mkdir($dirPath, 0755, true);
