@@ -2,11 +2,16 @@ Extract OCR (plugin upgraded for Omeka S)
 =========================================
 
 
-Module for Omeka S to extract OCR text in XML from PDF files, allowing fulltext
-searching within any IIIF viewer like Universal Viewer or Mirador with [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch)).
+Module for Omeka S to extract OCR text in XML and TSV from PDF files, allowing
+instant fulltext searching within any IIIF viewer like Universal Viewer or
+Mirador with [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch)).
 
 The xml format is the simple [pdf2xml](https://poppler.freedesktop.org) or the
-most common standard [alto](https://www.loc.gov/standards/alto).
+most common standard [alto](https://www.loc.gov/standards/alto). The tsv format
+is a simple two columns with the words and the list of positions by page.
+
+The tsv format is recommended as it is a lot quicker, in particular for items
+with many pages.
 
 
 Installation
@@ -54,9 +59,9 @@ Using the Extract OCR module
 - Create an item
 - Save this Item
 - After save, add PDF file(s) to this item
-- To locate extracted OCR xml file, select the item to which the PDF is
-  attached. Normally, you should see an XML file attached to the record with the
-  same filename than the pdf file.
+- To locate extracted OCR xml or tsv file, select the item to which the PDF is
+  attached. Normally, you should see an XML or a tsv file attached to the record
+  with the same filename than the pdf file.
 
 
 Optional modules
@@ -71,13 +76,15 @@ Optional modules
   Module for Omeka S that includes UniversalViewer, a unified online player for
   any file. It can display books, images, maps, audio, movies, pdf, 3D views,
   and anything else as long as the appropriate extensions are installed.
-  Or any other IIIF viewers, like [Mirador](https://gitlab.com/Daniel-KM/Omeka-S-module-Mirador).
+- [Mirador](https://gitlab.com/Daniel-KM/Omeka-S-module-Mirador)
+- Or any other IIIF viewers, like [Diva](https://gitlab.com/Daniel-KM/Omeka-S-module-Mirador).
 
 
 TODO
 ----
 
-- [ ] Extract strings with pdftotext with arg -tsv and store them in a file or in database for simpler and quicker search.
+- [x] Extract strings with pdftotext with arg -tsv and store them in a file or in database for simpler and quicker search.
+- [ ] Extract strings by word, but with one position by row, allowing to search with "AND", not only "OR".
 
 
 Troubleshooting
@@ -110,4 +117,4 @@ Copyright
 ---------
 
 * Copyright Syvain Machefert, Université Bordeaux 3 (see [symac](https://github.com/symac))
-* Copyright Daniel Berthereau, 2020-2023 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)
+* Copyright Daniel Berthereau, 2020-2024 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)

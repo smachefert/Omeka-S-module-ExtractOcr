@@ -17,6 +17,7 @@ class ExtractOcr extends AbstractJob
 {
     const FORMAT_ALTO = 'application/alto+xml';
     const FORMAT_PDF2XML = 'application/vnd.pdf2xml+xml';
+    const FORMAT_TSV = 'text/tab-separated-values';
 
     /**
      * @var \Omeka\Api\Manager
@@ -56,7 +57,7 @@ class ExtractOcr extends AbstractJob
     /**
      * @var bool
      */
-    protected $createEmptyXml;
+    protected $createEmptyFile;
 
     /**
      * @var string
@@ -64,14 +65,19 @@ class ExtractOcr extends AbstractJob
     protected $language;
 
     /**
-     * @var string
-     */
-    protected $mediaType;
-
-    /**
      * @var \Omeka\Api\Representation\PropertyRepresentation|null
      */
     protected $property;
+
+    /**
+     * @var string
+     */
+    protected $targetExtension;
+
+    /**
+     * @var string
+     */
+    protected $targetMediaType;
 
     /**
      * @var array
@@ -105,13 +111,14 @@ class ExtractOcr extends AbstractJob
         $services = $this->getServiceLocator();
         $helpers = $services->get('ViewHelperManager');
         $this->api = $services->get('Omeka\ApiManager');
-        $this->fixUtf8 = $helpers->has('FixUtf8') ?$helpers->get('FixUtf8') : null;
+        $this->fixUtf8 = $helpers->has('FixUtf8') ? $helpers->get('FixUtf8') : null;
         $this->logger = $services->get('Omeka\Logger');
         $this->tempFileFactory = $services->get('Omeka\File\TempFileFactory');
         $this->cli = $services->get('Omeka\Cli');
         $this->baseUri = $this->getArg('baseUri');
         $this->basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
         if (!$this->checkDir($this->basePath . '/temp')) {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(new Message(
                 'The temporary directory "files/temp" is not writeable. Fix rights or create it manually.' // @translate
             ));
@@ -120,17 +127,27 @@ class ExtractOcr extends AbstractJob
 
         $settings = $services->get('Omeka\Settings');
 
-        $mediaType =  $settings->get('extractocr_media_type');
-        $this->mediaType = in_array($mediaType, [self::FORMAT_ALTO, self::FORMAT_PDF2XML], true) ? $mediaType : self::FORMAT_ALTO;
+        $mediaType = $settings->get('extractocr_media_type');
+        $this->targetMediaType = in_array(
+            $mediaType, [
+                self::FORMAT_ALTO,
+                self::FORMAT_PDF2XML,
+                self::FORMAT_TSV
+            ], true)
+            ? $mediaType
+            : self::FORMAT_TSV;
 
-        if ($this->mediaType === self::FORMAT_ALTO && !class_exists('XSLTProcessor')) {
+        if ($this->targetMediaType === self::FORMAT_ALTO && !class_exists('XSLTProcessor')) {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(new Message(
                 'The php extension "xml" or "xsl" is required to extract text as xml alto.' // @translate
             ));
             return;
         }
 
-        $override = (bool) $this->getArg('override');
+        $this->targetExtension = $this->targetMediaType === self::FORMAT_TSV ? 'tsv' : 'xml';
+
+        $mode = $this->getArg('mode') ?: 'all';
         $itemId = (int) $this->getArg('itemId');
         $itemIds = (string) $this->getArg('item_ids');
         if ($itemId) {
@@ -139,7 +156,7 @@ class ExtractOcr extends AbstractJob
 
         // TODO Manage the case where there are multiple pdf by item (rare).
 
-        $contentStore = array_filter($settings->get('extractocr_content_store'));
+        $contentStore = array_filter($settings->get('extractocr_content_store') ?? []);
         if ($contentStore) {
             $prop = $settings->get('extractocr_content_property');
             if ($prop) {
@@ -159,7 +176,7 @@ class ExtractOcr extends AbstractJob
             }
         }
 
-        $this->createEmptyXml = (bool) $settings->get('extractocr_create_empty_xml');
+        $this->createEmptyFile = (bool) $settings->get('extractocr_create_empty_file');
 
         // It's not possible to search multiple item ids, so use the connection.
         // SInce the job can be sent only by an admin, there is no rights issue.
@@ -215,7 +232,7 @@ class ExtractOcr extends AbstractJob
                 $sql .= ' AND ' . implode(' AND ', $range);
             }
         }
-        $sql .= ' ORDER BY `item_id`';
+        $sql .= ' ORDER BY `item_id` ASC';
         $pdfMediaIds = $connection->executeQuery($sql, $bind, $types)->fetchFirstColumn();
         $totalToProcess = count($pdfMediaIds);
 
@@ -228,22 +245,34 @@ class ExtractOcr extends AbstractJob
         $formats = [
             self::FORMAT_ALTO => 'alto',
             self::FORMAT_PDF2XML => 'pdf2xml',
+            self::FORMAT_TSV => 'tsv',
         ];
         $message = new Message(sprintf(
             'Format of xml files to create: %s.', // @translate,
-            $formats[$this->mediaType]
+            $formats[$this->targetMediaType]
         ));
 
-        if ($override) {
+        if ($mode === 'existing') {
+            $message = new Message(
+                'Creating Extract OCR xml files for %d PDF only if they already exist.', // @translate
+                $totalToProcess
+            );
+        } elseif ($mode === 'missing') {
+            $message = new Message(
+                'Creating Extract OCR xml files for %d PDF, only if they do not exist yet.', // @translate
+                $totalToProcess
+            );
+        } elseif ($mode === 'all') {
             $message = new Message(
                 'Creating Extract OCR xml files for %d PDF, xml files will be overridden or created.', // @translate
                 $totalToProcess
             );
         } else {
             $message = new Message(
-                'Creating Extract OCR xml files for %d PDF, without overriding existing xml.', // @translate
-                $totalToProcess
+                'Mode of extraction "%s" is not managed.', // @translate
+                $mode
             );
+            return;
         }
         $this->logger->info($message);
 
@@ -259,15 +288,15 @@ class ExtractOcr extends AbstractJob
 
         foreach ($pdfMediaIds as $pdfMediaId) {
             if ($this->shouldStop()) {
-                if ($override) {
+                if ($mode === 'all') {
                     $this->logger->warn(new Message(
                         'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d failed (%4$d without file, %5$d without text layer, %6$d with issue).', // @translate
-                        $countProcessed, $totalToProcess, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+                        $countProcessed, $totalToProcess, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
                     ));
                 } else {
                     $this->logger->warn(new Message(
                         'The job "Extract OCR" was stopped: %1$d/%2$d resources processed, %3$d skipped, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
-                        $countProcessed, $totalToProcess, $countSkipped, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+                        $countProcessed, $totalToProcess, $countSkipped, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
                     ));
                 }
                 return;
@@ -276,10 +305,19 @@ class ExtractOcr extends AbstractJob
             $pdfMedia = $this->api->read('media', ['id' => $pdfMediaId])->getContent();
             $item = $pdfMedia->item();
 
-            // Search if this item has already an xml file.
-            $targetFilename = basename($pdfMedia->source(), '.pdf') . '.xml';
-            // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
-            $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'xml', $this->mediaType);
+            if (in_array($this->targetMediaType, [self::FORMAT_ALTO, self::FORMAT_PDF2XML])) {
+                // Search if this item has already an xml file.
+                $targetFilename = basename($pdfMedia->source(), '.pdf') . '.xml';
+                // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
+                $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'xml', $this->targetMediaType);
+            } elseif ($this->targetMediaType === self::FORMAT_TSV) {
+                // Search if this item has already an tsv file.
+                $targetFilename = basename($pdfMedia->source(), '.pdf') . '.tsv';
+                // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
+                $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'tsv', $this->targetMediaType);
+            } else {
+                return;
+            }
 
             ++$countPdf;
             $this->logger->info(new Message(
@@ -287,23 +325,26 @@ class ExtractOcr extends AbstractJob
                 $countPdf, $totalToProcess, $item->id(), $pdfMedia->id(), $pdfMedia->source())
             );
 
-            if ($override) {
+            if ($mode === 'all' || $mode === 'existing') {
                 if ($searchXmlFile) {
                     try {
                         $this->api->delete('media', $searchXmlFile->id());
                     } catch (Exception $e) {
                         // There may be a doctrine issue with module Access, but media is removed.
                     }
-                    $this->logger->info(
-                        new Message('The existing XML was removed for item #%d.', // @translate
-                        $item->id())
-                    );
+                    $this->logger->info(new Message(
+                        'The existing %1$s was removed for item #%2$d.', // @translate
+                        $this->targetExtension, $item->id()
+                    ));
+                } elseif ($mode === 'existing') {
+                    ++$countSkipped;
+                    continue;
                 }
             } elseif ($searchXmlFile) {
                 $this->logger->info(new Message(
-                    'An XML file (media #%1$d) already exists and override is not set. Item #%2$d is skipped.',  // @translate
-                    $searchXmlFile->id(), $item->id())
-                );
+                    'A file %1$s (media #%2$d) already exists, so item #%3$d is skipped.',  // @translate
+                    $this->targetExtension, $searchXmlFile->id(), $item->id()
+                ));
                 ++$countSkipped;
                 continue;
             }
@@ -312,9 +353,9 @@ class ExtractOcr extends AbstractJob
             $xmlMedia = $this->extractOcrForMedia($pdfMedia);
             if ($xmlMedia) {
                 $this->logger->info(new Message(
-                    'Media #%1$d (item #%2$d) created for xml file.', // @translate
-                    $xmlMedia->id(), $item->id())
-                );
+                    'Media #%1$d (item #%2$d) created for %3$s file.', // @translate
+                    $xmlMedia->id(), $item->id(), $this->targetExtension
+                ));
                 if ($this->store['item']) {
                     $this->storeContentInProperty($item);
                 }
@@ -353,15 +394,15 @@ class ExtractOcr extends AbstractJob
             $this->logger->notice($message);
         }
 
-        if ($override) {
+        if ($mode === 'all') {
             $message = new Message(
-                'Processed %1$d/%2$d pdf files, %3$d xml files created, %4$d failed (%5$d without file, %6$d without text layer, %7$d with issue).', // @translate
-                $countPdf, $totalToProcess, $countProcessed, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+                'Processed %1$d/%2$d pdf files, %3$d files %4$s created, %5$d failed (%6$d without file, %7$d without text layer, %8$d with issue).', // @translate
+                $countPdf, $totalToProcess, $countProcessed, $this->targetExtension, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
             );
         } else {
             $message = new Message(
-                'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d xml files created, %5$d failed (%6$d without file, %7$d without text layer, %8$d with issue).', // @translate
-                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $countFailed , count($this->stats['no_pdf']), count($this->stats['no_text_layer']),count($this->stats['issue'])
+                'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d files %5$s, created, %6$d failed (%7$d without file, %8$d without text layer, %9$d with issue).', // @translate
+                $countPdf, $totalToProcess, $countSkipped, $countProcessed, $this->targetExtension, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
             );
         }
         $this->logger->notice($message);
@@ -400,7 +441,10 @@ class ExtractOcr extends AbstractJob
         $pdfFilepath = $this->basePath . '/original/' . $pdfMedia->filename();
         if (!file_exists($pdfFilepath)) {
             $this->stats['no_pdf'][] = $pdfMedia->id();
-            $this->logger->err(new Message('Missing pdf file (media #%1$d).', $pdfMedia->id())); // @translate
+            $this->logger->err(new Message(
+                'Missing pdf file (media #%1$d).', // @translate
+                $pdfMedia->id()
+            ));
             return null;
         }
 
@@ -413,27 +457,45 @@ class ExtractOcr extends AbstractJob
         ];
 
         // Do the conversion of the pdf to xml.
-        $xmlTempFile = $this->pdfToText($pdfFilepath);
+        $xmlTempFile = $this->pdfToText($pdfFilepath, $pdfMedia->item());
         if (empty($xmlTempFile)) {
             $this->stats['issue'][] = $pdfMedia->id();
-            $this->logger->err(new Message('Xml file was not created for media #%1$s.', $pdfMedia->id())); // @translate
+            $this->logger->err(new Message(
+                'File %1$s was not created for media #%2$s.', // @translate
+                $this->targetExtension, $pdfMedia->id()
+            ));
             return null;
         }
 
-        $content = file_get_contents($xmlTempFile->getTempPath());
+        $tempPath = $xmlTempFile->getTempPath();
+
+        // A check is done when option "create empty file" is not used.
+        if (!$tempPath || !file_exists($tempPath)) {
+            return null;
+        }
+
+        $content = file_get_contents($tempPath);
 
         // The content can be reextracted through pdftotext, that may return a
         // different layout with options -layout or -raw.
-        // Here, the text is extracted from the extracted pdf2xml..
-        $content = $this->mediaType === self::FORMAT_PDF2XML
-            ? trim(strip_tags($content))
-            : $this->extractTextFromAlto($content);
-        if (!$this->createEmptyXml && !strlen($content)) {
+        // Here, the text is extracted from the extracted pdf2xml.
+        if ($this->targetMediaType === self::FORMAT_ALTO) {
+            $content = $this->extractTextFromAlto($content);
+        } elseif ($this->targetMediaType === self::FORMAT_PDF2XML) {
+            $content = trim(strip_tags($content));
+        } else {
+            $content = '';
+        }
+
+        if ($this->targetMediaType !== self::FORMAT_TSV
+            && !$this->createEmptyFile
+            && !strlen($content)
+        ) {
             $xmlTempFile->delete();
             $this->stats['no_text_layer'][] = $pdfMedia->id();
             $this->logger->notice(new Message(
-                'The xml for pdf #%1$d has no text content and is not created.', // @translate
-                $pdfMedia->id()
+                'The output %1$s for pdf #%2$d has no text content and is not created.', // @translate
+                $this->targetExtension, $pdfMedia->id()
             ));
             return null;
         }
@@ -450,7 +512,7 @@ class ExtractOcr extends AbstractJob
         $currentPosition = count($pdfMedia->item()->media());
 
         // This data is important to get the matching pdf and xml.
-        $source = basename($pdfMedia->source(), '.pdf') . '.xml';
+        $source = basename($pdfMedia->source(), '.pdf') . '.' . $this->targetExtension;
 
         $data = [
             'o:item' => [
@@ -460,7 +522,7 @@ class ExtractOcr extends AbstractJob
             'ingest_url' => $xmlStoredFile['url'],
             'o:source' => $source,
             'o:lang' => $this->language,
-            'o:media_type' => $this->mediaType,
+            'o:media_type' => $this->targetMediaType,
             'position' => $currentPosition,
             'values_json' => '{}',
         ];
@@ -512,42 +574,75 @@ class ExtractOcr extends AbstractJob
     /**
      * Extract and store OCR Data from pdf in .xml file
      */
-    protected function pdfToText(string $pdfFilepath): ?TempFile
+    protected function pdfToText(string $pdfFilepath, $item): ?TempFile
     {
         $tempFile = $this->tempFileFactory->build();
-        $xmlFilepath = $tempFile->getTempPath() . '.xml';
+
+        $xmlFilepath = $tempFile->getTempPath() . '.' . $this->targetExtension;
         @unlink($tempFile->getTempPath());
         $tempFile->setTempPath($xmlFilepath);
+        $tempPath = $tempFile->getTempPath();
+
+        if ($this->targetMediaType === self::FORMAT_TSV) {
+            $result = $this->extractTextToTsv($pdfFilepath, $xmlFilepath, $item);
+            if (!$result) {
+                if ($tempPath && file_exists($tempPath)) {
+                    $tempFile->delete();
+                }
+                return null;
+            }
+            return $tempFile;
+        }
 
         $command = sprintf('pdftohtml -i -c -hidden -nodrm -enc "UTF-8" -xml %1$s %2$s',
             escapeshellarg($pdfFilepath), escapeshellarg($xmlFilepath));
 
         $result = $this->cli->execute($command);
         if ($result === false) {
-            $tempFile->delete();
+            if ($tempPath && file_exists($tempPath)) {
+                $tempFile->delete();
+            }
             return null;
         }
 
-        $xmlContent = (string) file_get_contents($xmlFilepath);
+        // Remove control characters from bad ocr.
+        /** @see https://stackoverflow.com/questions/1497885/remove-control-characters-from-php-string */
+        $content = file_get_contents($xmlFilepath);
+        $content = preg_replace('/[^\PCc^\PCn^\PCs]/u', '', $content);
+        $xml = simplexml_load_string($content, null,
+            LIBXML_BIGLINES
+            | LIBXML_COMPACT
+            | LIBXML_NOBLANKS
+            | LIBXML_PARSEHUGE
+            // | LIBXML_NOCDATA
+            // | LIBXML_NOENT
+            // Avoid issue when network is unavailable?
+            // | LIBXML_NONET
+        );
+
         if ($this->fixUtf8) {
             $xmlContent = $this->fixUtf8->__invoke($xmlContent);
         }
 
         $xmlContent = $this->fixXmlPdf2Xml($xmlContent);
         if (!$xmlContent) {
-            $tempFile->delete();
+            if ($tempPath && file_exists($tempPath)) {
+                $tempFile->delete();
+            }
             return null;
         }
 
         $simpleXml = $this->fixXmlDom($xmlContent);
         if (!$simpleXml) {
-            $tempFile->delete();
+            if ($tempPath && file_exists($tempPath)) {
+                $tempFile->delete();
+            }
             return null;
         }
 
         $simpleXml->saveXML($xmlFilepath);
 
-        if ($this->mediaType !== self::FORMAT_PDF2XML) {
+        if ($this->targetMediaType === self::FORMAT_ALTO) {
             /** @see https://gitlab.freedesktop.org/poppler/poppler/-/raw/master/utils/pdf2xml.dtd pdf2xml */
             $modulePath = dirname(__DIR__, 2);
             $xsltPath = $modulePath . '/data/xsl/pdf2xml_to_alto.xsl';
@@ -566,12 +661,111 @@ class ExtractOcr extends AbstractJob
             $dom->substituteEntities = true;
             $result = $dom->save($xmlFilepath);
             if (!$result) {
-                $tempFile->delete();
+                if ($tempPath && file_exists($tempPath)) {
+                    $tempFile->delete();
+                }
                 return null;
             }
         }
 
         return $tempFile;
+    }
+
+    protected function extractTextToTsv($pdfFilepath, $tsvFilepath, $item) : bool
+    {
+        $listMedia = $this->listMedia($item);
+
+        // Create temp file.
+        $tempFile = $this->tempFileFactory->build();
+        $xmlFilepath = $tempFile->getTempPath() . '.xml';
+        @unlink($tempFile->getTempPath());
+        $tempFile->setTempPath($xmlFilepath);
+        $tempPath = $tempFile->getTempPath();
+
+        $command = sprintf('pdftotext -bbox -layout %1$s %2$s',
+            escapeshellarg($pdfFilepath), escapeshellarg($xmlFilepath));
+
+        $result = $this->cli->execute($command);
+        if ($result === false) {
+            if ($tempPath && file_exists($tempPath)) {
+                $tempFile->delete();
+            }
+            return false;
+        }
+
+        // Remove control characters from bad ocr.
+        /** @see https://stackoverflow.com/questions/1497885/remove-control-characters-from-php-string */
+        $content = file_get_contents($xmlFilepath);
+        $content = preg_replace('/[^\PCc^\PCn^\PCs]/u', '', $content);
+        $xml = simplexml_load_string($content, null,
+            LIBXML_BIGLINES
+            | LIBXML_COMPACT
+            | LIBXML_NOBLANKS
+            | LIBXML_PARSEHUGE
+            // | LIBXML_NOCDATA
+            // | LIBXML_NOENT
+            // Avoid issue when network is unavailable.
+            // | LIBXML_NONET
+        );
+
+        if ($xml === false) {
+            return false;
+        }
+
+        $resultTsv = [];
+        $indexXmlPage = 0;
+
+        foreach ($xml->body->doc->page ?? [] as $xmlPage) {
+            ++$indexXmlPage;
+
+            $attributesPage = $xmlPage->attributes();
+            $widthPage = $attributesPage->width;
+            $heightPage = $attributesPage->height;
+
+            $scaleX = $listMedia[$indexXmlPage - 1]['width'] / $widthPage;
+            $scaleY = $listMedia[$indexXmlPage - 1]['height'] / $heightPage;
+
+            foreach ($xmlPage->word ?? [] as $xmlword) {
+                $word = (string) $xmlword;
+                $word = $this->slugify($word);
+                if (!strlen($word)) {
+                    continue;
+                }
+
+                $attributes = $xmlword->attributes();
+
+                $xMax = $attributes->xMax;
+                $yMax = $attributes->yMax;
+                $xMin = $attributes->xMin;
+                $yMin = $attributes->yMin;
+
+                $xMax = $xMax * $scaleX;
+                $yMax = $yMax * $scaleY;
+                $xMin = $xMin * $scaleX;
+                $yMin = $yMin * $scaleY;
+
+                $width = round($xMax - $xMin);
+                $height = round($yMax - $yMin);
+
+                if (isset($resultTsv[$word])) {
+                    $resultTsv[$word][1] .= ";" . $indexXmlPage . ":" . round((float) $xMin) . "," . round((float) $yMin) . "," . $width . "," . $height;
+                } else {
+                    $resultTsv[$word][0] = $word;
+                    $resultTsv[$word][1] = $indexXmlPage . ":" . round((float) $xMin) . "," . round((float) $yMin) . "," . $width . "," . $height;
+                }
+            }
+        }
+
+        if (!$resultTsv && !$this->createEmptyFile) {
+            return true;
+        }
+
+        $fp = fopen($tsvFilepath, 'w');
+        foreach ($resultTsv as $fields) {
+            fputcsv($fp, $fields, "\t", chr(0), chr(0));
+        }
+        $tempFile->delete();
+        return fclose($fp);
     }
 
     /**
@@ -728,7 +922,7 @@ class ExtractOcr extends AbstractJob
         }
         $lastMedia->setPosition(++$key);
 
-        $lastMedia->setMediaType($this->mediaType);
+        $lastMedia->setMediaType($this->targetMediaType);
 
         // Flush one time to use a transaction and to avoid a duplicate issue
         // with the index item_id/position.
@@ -754,16 +948,17 @@ class ExtractOcr extends AbstractJob
 
         // Find a unique meaningful filename instead of a hash.
         $name = date('Ymd_His') . '_pdf2xml';
-        $extension = 'xml';
         $i = 0;
         do {
-            $filename = $name . ($i ? '-' . $i : '') . '.' . $extension;
+            $filename = $name . ($i ? '-' . $i : '') . '.' . $this->targetExtension;
             $destination = $destinationDir . '/' . $filename;
             if (!file_exists($destination)) {
                 $result = @copy($source, $destination);
                 if (!$result) {
-                    $this->logger->err(new Message('File cannot be saved in temporary directory "%1$s" (temp file: "%2$s")', // @translate
-                        $destination, $source));
+                    $this->logger->err(new Message(
+                        'File cannot be saved in temporary directory "%1$s" (temp file: "%2$s")', // @translate
+                        $destination, $source
+                    ));
                     return null;
                 }
                 $storageId = $base . $name . ($i ? '-' . $i : '');
@@ -787,8 +982,10 @@ class ExtractOcr extends AbstractJob
     {
         if (!file_exists($dirPath)) {
             if (!is_writeable($this->basePath)) {
-                $this->logger->err(new Message('Temporary destination for XML can not be created : %1$s', // @translate
-                $dirPath));
+                $this->logger->err(new Message(
+                    'Temporary destination for temp files can not be created : %1$s', // @translate
+                    $dirPath
+                ));
                 return false;
             }
             @mkdir($dirPath, 0755, true);
@@ -854,5 +1051,77 @@ class ExtractOcr extends AbstractJob
         return array_values(array_filter($ids, function ($v) {
             return !empty($v) && $v !== '-' && substr_count($v, '-') <= 1;
         }));
+    }
+
+    /**
+     * Transform the given string into a valid URL slug
+     *
+     * @param string $input
+     * @return string
+     */
+    protected function slugify($input): string
+    {
+        if (extension_loaded('intl')) {
+            $transliterator = \Transliterator::createFromRules(':: NFD; :: [:Nonspacing Mark:] Remove; :: NFC;');
+            $slug = $transliterator->transliterate($input);
+        } elseif (extension_loaded('iconv')) {
+            $slug = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $input);
+        } else {
+            $slug = $input;
+        }
+        $slug = mb_strtolower($slug, 'UTF-8');
+
+        return $slug;
+    }
+
+    protected function listMedia($item): array
+    {
+        $imageSizes = [];
+
+        foreach ($item->media() as $media) {
+            $mediaId = $media->id();
+            $mediaType = $media->mediaType();
+            if (strtok((string) $mediaType, '/') === 'image') {
+                // TODO The images sizes may be stored by xml files too, so skip size retrieving once the matching between images and text is done by page.
+                $mediaData = $media->mediaData();
+                // Iiif info stored by Omeka.
+                if (isset($mediaData['width'])) {
+                    $imageSizes[] = [
+                        'id' => $mediaId,
+                        'width' => $mediaData['width'],
+                        'height' => $mediaData['height'],
+                        'source' => $media->source(),
+                    ];
+                }
+                // Info stored by Iiif Server.
+                elseif (isset($mediaData['dimensions']['original']['width'])) {
+                    $imageSizes[] = [
+                        'id' => $mediaId,
+                        'width' => $mediaData['dimensions']['original']['width'],
+                        'height' => $mediaData['dimensions']['original']['height'],
+                        'source' => $media->source(),
+                    ];
+                } elseif ($media->hasOriginal() && strtok($mediaType, '/') === 'image') {
+                    $size = ['id' => $mediaId];
+                    $size += $this->imageSizeLocal($media);
+                    $size['source'] = $media->source();
+                    $imageSizes[] = $size;
+                }
+            }
+        }
+
+        return $imageSizes;
+    }
+
+    protected function imageSizeLocal(MediaRepresentation $media): array
+    {
+        // Some media types don't save the file locally.
+        $filepath = ($filename = $media->filename())
+            ? $this->basePath . '/original/' . $filename
+            : $media->originalUrl();
+        $size = getimagesize($filepath);
+        return $size
+            ? ['width' => $size[0], 'height' => $size[1]]
+            : ['width' => 0, 'height' => 0];
     }
 }

@@ -23,6 +23,7 @@ class ConfigForm extends Form
                 'options' => [
                     'label' => 'Format of the xml content', // @translate
                     'value_options' => [
+                        'text/tab-separated-values' => 'tsv',
                         'application/alto+xml' => 'alto',
                         'application/vnd.pdf2xml+xml' => 'pdf2xml',
                     ],
@@ -74,13 +75,14 @@ class ConfigForm extends Form
                 ],
             ])
             ->add([
-                'name' => 'extractocr_create_empty_xml',
+                'name' => 'extractocr_create_empty_file',
                 'type' => Element\Checkbox::class,
                 'options' => [
                     'label' => 'Create xml file even if there is no text content', // @translate
+                    'info' => 'This option may be useful to keep the same order and number of pages and extracted texts.', // @translate
                 ],
                 'attributes' => [
-                    'id' => 'extractocr_create_empty_xml',
+                    'id' => 'extractocr_create_empty_file',
                 ],
             ])
 
@@ -95,13 +97,19 @@ class ConfigForm extends Form
 
         $this->get('extractocr_extractor')
             ->add([
-                'name' => 'override',
-                'type' => Element\Checkbox::class,
+                'name' => 'mode',
+                'type' => Element\Radio::class,
                 'options' => [
-                    'label' => 'Extract OCR even if the XML file already exists', // @translate
+                    'label' => 'Extract OCR job', // @translate
+                    'value_options' => [
+                        'existing' => 'Only already extracted (improve extraction)', // @translate
+                        'missing' => 'Only missing extracted medias', // @translate
+                        'all' => 'All medias', // @translate
+                    ],
                 ],
                 'attributes' => [
-                    'id' => 'override',
+                    'id' => 'mode',
+                    'value' => 'all',
                 ],
             ])
             ->add([

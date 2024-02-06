@@ -3,7 +3,6 @@
 namespace ExtractOcr;
 
 use ExtractOcr\Form\ConfigForm;
-use ExtractOcr\Job\ExtractOcr;
 use Laminas\EventManager\Event;
 use Laminas\EventManager\SharedEventManagerInterface;
 use Laminas\Mvc\Controller\AbstractController;
@@ -11,7 +10,6 @@ use Laminas\ServiceManager\ServiceLocatorInterface;
 use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Module\AbstractModule;
 use Omeka\Module\Exception\ModuleCannotInstallException;
-use Omeka\Settings\SettingsInterface;
 use Omeka\Stdlib\Message;
 
 class Module extends AbstractModule
@@ -23,6 +21,8 @@ class Module extends AbstractModule
 
     public function install(ServiceLocatorInterface $services): void
     {
+        $this->setServiceLocator($services);
+
         $t = $services->get('MvcTranslator');
 
         // Don't install if the pdftotext command doesn't exist.
@@ -59,7 +59,8 @@ class Module extends AbstractModule
         foreach ($config as $name => $value) {
             $settings->set($name, $value);
         }
-        $this->allowXML($services->get('Omeka\Settings'));
+
+        $this->allowFileFormats();
     }
 
     public function uninstall(ServiceLocatorInterface $services): void
@@ -74,15 +75,27 @@ class Module extends AbstractModule
 
     public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $services)
     {
+        $this->setServiceLocator($services);
+
+        $plugins = $services->get('ControllerPluginManager');
+        $settings = $services->get('Omeka\Settings');
+        $messenger = $plugins->get('messenger');
+
         if (version_compare((string) $oldVersion, '3.4.5', '<')) {
-            $plugins = $services->get('ControllerPluginManager');
-            $settings = $services->get('Omeka\Settings');
-            $messenger = $plugins->get('messenger');
             $message = new Message('A new option allows to create xml as alto multi-pages.'); // @translate
             // Default is alto on install, but pdf2xml during upgrade.
             $settings->set('extractocr_media_type', 'application/vnd.pdf2xml+xml');
             $messenger->addSuccess($message);
         }
+
+        if (version_compare((string) $oldVersion, '3.4.6', '<')) {
+            $settings->set('extractocr_create_empty_file', $settings->get('extractocr_create_empty_xml', false));
+            $settings->delete('extractocr_create_empty_xml');
+            $message = new Message('A new option allows to export OCR into tsv format for quicker search results. Data should be reindexed with format TSV.'); // @translate
+            $messenger->addSuccess($message);
+        }
+
+        $this->allowFileFormats();
     }
 
     /**
@@ -105,24 +118,28 @@ class Module extends AbstractModule
     }
 
     /**
-     * Allow XML's extension and media type in omeka's settings
-     *
-     * @param SettingsInterface
+     * Allow TSV and XML extensions and media types in omeka settings.
      */
-    protected function allowXML(SettingsInterface $settings): void
+    protected function allowFileFormats(): void
     {
+        $settings = $this->getServiceLocator()->get('Omeka\Settings');
+
         $extensionWhitelist = $settings->get('extension_whitelist', []);
-        $xmlExtensions = [
+        $extensions = [
+            'tsv',
             'xml',
         ];
-        $extensionWhitelist = array_unique(array_merge($extensionWhitelist, $xmlExtensions));
+        $extensionWhitelist = array_unique(array_merge($extensionWhitelist, $extensions));
         $settings->set('extension_whitelist', $extensionWhitelist);
 
         $mediaTypeWhitelist = $settings->get('media_type_whitelist');
         $xmlMediaTypes = [
             'application/xml',
             'text/xml',
+            'application/alto+xml',
             'application/vnd.pdf2xml+xml',
+            'application/x-empty',
+            'text/tab-separated-values',
         ];
         $mediaTypeWhitelist = array_unique(array_merge($mediaTypeWhitelist, $xmlMediaTypes));
         $settings->set('media_type_whitelist', $mediaTypeWhitelist);
@@ -130,6 +147,8 @@ class Module extends AbstractModule
 
     public function getConfigForm(PhpRenderer $renderer)
     {
+        $this->allowFileFormats();
+
         $services = $this->getServiceLocator();
         $settings = $services->get('Omeka\Settings');
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
@@ -157,6 +176,7 @@ class Module extends AbstractModule
         $services = $this->getServiceLocator();
         $form = $services->get('FormElementManager')->get(ConfigForm::class);
 
+        /** @var \Laminas\Stdlib\Parameters $params */
         $params = $controller->getRequest()->getPost();
 
         $form->init();
@@ -166,18 +186,21 @@ class Module extends AbstractModule
             return false;
         }
 
-        $params = $form->getData();
+        $data = $form->getData();
 
         $settings = $services->get('Omeka\Settings');
-        $settings->set('extractocr_media_type', $params['extractocr_media_type'] ?: 'application/alto+xml');
-        $settings->set('extractocr_content_store', $params['extractocr_content_store']);
-        $settings->set('extractocr_content_property', $params['extractocr_content_property']);
-        $settings->set('extractocr_content_language', $params['extractocr_content_language']);
-        $settings->set('extractocr_create_empty_xml', !empty($params['extractocr_create_empty_xml']));
+        $settings->set('extractocr_media_type', $data['extractocr_media_type'] ?: 'text/tab-separated-values');
+        $settings->set('extractocr_content_store', $data['extractocr_content_store']);
+        $settings->set('extractocr_content_property', $data['extractocr_content_property']);
+        $settings->set('extractocr_content_language', $data['extractocr_content_language']);
+        $settings->set('extractocr_create_empty_file', !empty($data['extractocr_create_empty_file']));
 
-        // Form is already validated in parent.
-        $params = (array) $controller->getRequest()->getPost();
-        $params = array_intersect_key($params, ['override' => null, 'process' => null]);
+        // Keep only values used in job.
+        $params = array_intersect_key($params->getArrayCopy(), [
+            'mode' => 'all',
+            'item_ids' => '',
+            'process' => null,
+        ]);
         if (empty($params['process']) || $params['process'] !== $controller->translate('Process')) {
             $message = 'No job launched.'; // @translate
             $controller->messenger()->addWarning($message);
@@ -185,7 +208,7 @@ class Module extends AbstractModule
         }
 
         $args = [];
-        $args['override'] = (bool) ($params['override'] ?? false);
+        $args['mode'] = $params['mode'] ?? 'all';
         $args['baseUri'] = $this->getBaseUri();
         $args['item_ids'] = $params['item_ids'] ?? '';
 
@@ -202,7 +225,9 @@ class Module extends AbstractModule
             '</a>',
             sprintf(
                 '<a href="%s">',
-                htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log']))
+                class_exists('Log\Module')
+                    ? htmlspecialchars($controller->url()->fromRoute('admin/default', ['controller' => 'log'], ['query' => ['job_id' => $job->getId()]]))
+                    : htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log']))
             )
         );
         $message->setEscapeHtml(false);
@@ -221,25 +246,34 @@ class Module extends AbstractModule
         /** @var \Omeka\Entity\Item $item */
         $item = $response->getContent();
 
+        $settings = $this->getServiceLocator()->get('Omeka\Settings');
+        $targetMediaType = $settings->get('extractocr_media_type') ?? 'text/tab-separated-values';
+        $targetExtension = $targetMediaType === 'text/tab-separated-values' ? '.tsv' : '.xml';
+
         $hasPdf = false;
         $targetFilename = null;
         /** @var \Omeka\Entity\Media $media */
         foreach ($item->getMedia() as $media) {
-            if (strtolower((string) $media->getExtension()) === 'pdf'
-                && $media->getMediaType() === 'application/pdf'
-            ) {
+            $mediaType = $media->getMediaType();
+            $extension = strtolower((string) $media->getExtension());
+            if ($mediaType === 'application/pdf' && $extension === 'pdf') {
                 $hasPdf = true;
                 $source = (string) $media->getSource();
                 $filename = (string) parse_url($source, PHP_URL_PATH);
                 $targetFilename = strlen($filename)
                     ? basename($filename, '.pdf')
                     : $media->id() . '-' . $media->getStorageId();
-                $targetFilename .= '.xml';
+                $targetFilename .= $targetExtension;
                 break;
             }
         }
 
-        if (!$hasPdf || $targetFilename === '.xml') {
+        if (!$hasPdf || $targetFilename === '.tsv' || $targetFilename === '.xml') {
+            return;
+        }
+
+        // Don't override an already processed pdf when updating an item.
+        if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'tsv')) {
             return;
         }
 
@@ -249,7 +283,7 @@ class Module extends AbstractModule
         }
 
         $params = [
-            'override' => false,
+            'mode' => 'missing',
             'baseUri' => $this->getBaseUri(),
             'itemId' => $item->getId(),
             // FIXME Currently impossible to save text with event api.update.post;
@@ -325,7 +359,7 @@ class Module extends AbstractModule
     protected function checkDir($dirPath)
     {
         if (!file_exists($dirPath)) {
-            if (!is_writeable(basename($dirPath))) {
+            if (!is_writeable(dirname($dirPath))) {
                 return false;
             }
             @mkdir($dirPath, 0755, true);

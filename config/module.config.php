@@ -20,13 +20,13 @@ return [
     ],
     'extractocr' => [
         'config' => [
-            'extractocr_media_type' => 'application/alto+xml',
-            'extractocr_content_store' => [
-                'media_xml',
-            ],
+            'extractocr_media_type' => 'text/tab-separated-values',
+            // Don't set a default option to avoid issue with config form.
+            'extractocr_content_store' => [],
             'extractocr_content_property' => 'bibo:content',
             'extractocr_content_language' => '',
-            'extractocr_create_empty_xml' => false,
+            // Create an empty file when a page does not have text.
+            'extractocr_create_empty_file' => false,
         ],
     ],
 ];
