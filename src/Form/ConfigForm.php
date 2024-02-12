@@ -42,7 +42,7 @@ class ConfigForm extends Form
                     'value_options' => [
                         'item' => 'Item', // @translate
                         'media_pdf' => 'Pdf media', // @translate
-                        'media_xml' => 'Xml media', // @translate
+                        'media_extracted' => 'Tsv or Xml media', // @translate
                     ],
                 ],
                 'attributes' => [

@@ -95,7 +95,7 @@ class ExtractOcr extends AbstractJob
     protected $store = [
         'item' => false,
         'media_pdf' => false,
-        'media_xml' => false,
+        'media_extracted' => false,
     ];
 
     /**
@@ -166,7 +166,7 @@ class ExtractOcr extends AbstractJob
                     $this->language = $settings->get('extractocr_content_language');
                     $this->store['item'] = in_array('item', $contentStore) && !$this->getArg('manual');
                     $this->store['media_pdf'] = in_array('media_pdf', $contentStore);
-                    $this->store['media_xml'] = in_array('media_xml', $contentStore);
+                    $this->store['media_extracted'] = in_array('media_extracted', $contentStore);
                 }
             }
             if (!$this->property) {
@@ -311,7 +311,7 @@ class ExtractOcr extends AbstractJob
                 // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
                 $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'xml', $this->targetMediaType);
             } elseif ($this->targetMediaType === self::FORMAT_TSV) {
-                // Search if this item has already an tsv file.
+                // Search if this item has already a tsv file.
                 $targetFilename = basename($pdfMedia->source(), '.pdf') . '.tsv';
                 // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
                 $searchXmlFile = $this->getMediaFromFilename($item->id(), $targetFilename, 'tsv', $this->targetMediaType);
@@ -457,7 +457,8 @@ class ExtractOcr extends AbstractJob
         ];
 
         // Do the conversion of the pdf to xml.
-        $xmlTempFile = $this->pdfToText($pdfFilepath, $pdfMedia->item());
+        $xmlTempFile = $this->pdfToXmlTempFile($pdfFilepath, $pdfMedia->item());
+
         if (empty($xmlTempFile)) {
             $this->stats['issue'][] = $pdfMedia->id();
             $this->logger->err(new Message(
@@ -474,22 +475,20 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
-        $content = file_get_contents($tempPath);
+        $xmlContent = (string) file_get_contents($tempPath);
 
         // The content can be reextracted through pdftotext, that may return a
         // different layout with options -layout or -raw.
         // Here, the text is extracted from the extracted pdf2xml.
         if ($this->targetMediaType === self::FORMAT_ALTO) {
-            $content = $this->extractTextFromAlto($content);
-        } elseif ($this->targetMediaType === self::FORMAT_PDF2XML) {
-            $content = trim(strip_tags($content));
+            $textContent = $this->extractTextFromAlto($xmlContent);
         } else {
-            $content = '';
+            $textContent = trim(strip_tags($xmlContent));
         }
 
         if ($this->targetMediaType !== self::FORMAT_TSV
             && !$this->createEmptyFile
-            && !strlen($content)
+            && !strlen($textContent)
         ) {
             $xmlTempFile->delete();
             $this->stats['no_text_layer'][] = $pdfMedia->id();
@@ -527,17 +526,19 @@ class ExtractOcr extends AbstractJob
             'values_json' => '{}',
         ];
 
-        if ($this->property && strlen($content)) {
+        if ($this->property && strlen($textContent)) {
+            // The text content can be stored in media or just after in item, so
+            // it is stored in a class property.
             $this->contentValue = [
                 'type' => 'literal',
                 'property_id' => $this->property->id(),
-                '@value' => $content,
+                '@value' => $textContent ,
                 '@language' => $this->language,
             ];
             if ($this->store['media_pdf']) {
                 $this->storeContentInProperty($pdfMedia);
             }
-            if ($this->store['media_xml']) {
+            if ($this->store['media_extracted']) {
                 $data[$this->property->term()][] = $this->contentValue;
                 $data['dcterms:isFormatOf'][] = [
                     'type' => 'resource:media',
@@ -574,7 +575,7 @@ class ExtractOcr extends AbstractJob
     /**
      * Extract and store OCR Data from pdf in .xml file
      */
-    protected function pdfToText(string $pdfFilepath, $item): ?TempFile
+    protected function pdfToXmlTempFile(string $pdfFilepath, $item): ?TempFile
     {
         $tempFile = $this->tempFileFactory->build();
 
@@ -862,7 +863,7 @@ class ExtractOcr extends AbstractJob
      */
     protected function storeContentInProperty(AbstractResourceEntityRepresentation $resource): void
     {
-        if (empty($this->contentValue)) {
+        if ($this->contentValue === null || $this->contentValue === '') {
             return;
         }
 

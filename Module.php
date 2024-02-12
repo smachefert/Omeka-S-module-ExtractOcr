@@ -95,6 +95,16 @@ class Module extends AbstractModule
             $messenger->addSuccess($message);
         }
 
+        if (version_compare((string) $oldVersion, '3.4.7', '<')) {
+            $contentStore = $settings->get('extractocr_content_store', []);
+            $pos = array_search('media_xml', $contentStore);
+            if ($pos !== false) {
+                unset($contentStore[$pos]);
+                $contentStore[] = 'media_extracted';
+                $settings->set('extractocr_content_store', array_values($contentStore));
+            }
+        }
+
         $this->allowFileFormats();
     }
 
