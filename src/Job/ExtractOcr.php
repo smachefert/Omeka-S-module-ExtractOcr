@@ -599,7 +599,7 @@ class ExtractOcr extends AbstractJob
             escapeshellarg($pdfFilepath), escapeshellarg($xmlFilepath));
 
         $result = $this->cli->execute($command);
-        if ($result === false) {
+        if ($result === false || !file_exists($xmlFilepath) || !filesize($xmlFilepath)) {
             if ($tempPath && file_exists($tempPath)) {
                 $tempFile->delete();
             }
