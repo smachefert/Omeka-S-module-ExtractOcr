@@ -118,7 +118,7 @@ class ExtractOcr extends AbstractJob
         $this->cli = $services->get('Omeka\Cli');
         $this->baseUri = $this->getArg('baseUri');
         $this->basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-        if (!$this->checkDir($this->basePath . '/temp')) {
+        if (!$this->checkDestinationDir($this->basePath . '/temp')) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(new Message(
                 'The temporary directory "files/temp" is not writeable. Fix rights or create it manually.' // @translate
@@ -946,7 +946,7 @@ class ExtractOcr extends AbstractJob
     {
         $baseDestination = '/temp';
         $destinationDir = $this->basePath . $baseDestination . $base;
-        if (!$this->checkDir($destinationDir)) {
+        if (!$this->checkDestinationDir($destinationDir)) {
             return null;
         }
 
@@ -983,22 +983,32 @@ class ExtractOcr extends AbstractJob
 
     /**
      * Check or create the destination folder.
+     *
+     * @param string $dirPath Absolute path.
+     * @return string|null
      */
-    protected function checkDir(string $dirPath): bool
+    protected function checkDestinationDir(string $dirPath): ?string
     {
-        if (!file_exists($dirPath)) {
-            if (!is_writeable($this->basePath)) {
+        if (file_exists($dirPath)) {
+            if (!is_dir($dirPath) || !is_readable($dirPath) || !is_writeable($dirPath)) {
                 $this->logger->err(new Message(
-                    'Temporary destination for temp files can not be created : %1$s', // @translate
+                    'The directory "%s" is not writeable.', // @translate
                     $dirPath
                 ));
-                return false;
+                return null;
             }
-            @mkdir($dirPath, 0755, true);
-        } elseif (!is_dir($dirPath) || !is_writeable($dirPath)) {
-            return false;
+            return $dirPath;
         }
-        return true;
+
+        $result = @mkdir($dirPath, 0775, true);
+        if (!$result) {
+            $this->logger->err(new Message(
+                'The directory "%1$s" is not writeable: %2$s.', // @translate
+                $dirPath, error_get_last()['message']
+            ));
+            return null;
+        }
+        return $dirPath;
     }
 
     /**

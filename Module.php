@@ -22,7 +22,6 @@ class Module extends AbstractModule
     public function install(ServiceLocatorInterface $services): void
     {
         $this->setServiceLocator($services);
-
         $t = $services->get('MvcTranslator');
 
         // Don't install if the pdftotext command doesn't exist.
@@ -33,24 +32,35 @@ class Module extends AbstractModule
             );
         }
 
-        $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-        if (!$this->checkDir($basePath . '/temp')) {
-            throw new ModuleCannotInstallException(
-                $t->translate('The temporary directory "files/temp" is not writeable. Fix rights or create it manually.') //@translate
+        $config = $services->get('Config');
+        $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+
+        if (!$this->checkDestinationDir($basePath . '/temp')) {
+            $message = new Message(
+                $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                $basePath . '/temp'
             );
+            throw new ModuleCannotInstallException($message);
+        }
+
+        if (!$this->checkDestinationDir($basePath . '/iiif-search')) {
+            $message = new Message(
+                $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                $basePath . '/iiif-search'
+            );
+            throw new ModuleCannotInstallException($message);
         }
 
         $isOldOmeka = version_compare(\Omeka\Module::VERSION, '3.1', '<');
-        $baseUri = $services->get('Config')['file_store']['local']['base_uri'];
+        $baseUri = $config['file_store']['local']['base_uri'];
         if (!$baseUri && $isOldOmeka) {
             $this->setServiceLocator($services);
             $baseUri = $this->getBaseUri();
-            throw new ModuleCannotInstallException(
-                sprintf(
-                    $t->translate('The base uri "%s" is not set in the config file of Omeka "config/local.config.php". It must be set for technical reasons for now.'), //@translate
-                    $baseUri
-                )
+            $message = new Message(
+                $t->translate('The base uri "%s" is not set in the config file of Omeka "config/local.config.php". It must be set for technical reasons for now.'), //@translate
+                $baseUri
             );
+            throw new ModuleCannotInstallException($message);
         }
 
         $settings = $services->get('Omeka\Settings');
@@ -96,6 +106,18 @@ class Module extends AbstractModule
         }
 
         if (version_compare((string) $oldVersion, '3.4.7', '<')) {
+            $this->setServiceLocator($services);
+            $t = $services->get('MvcTranslator');
+            $config = $services->get('Config');
+            $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+            if (!$this->checkDestinationDir($basePath . '/iiif-search')) {
+                $message = new Message(
+                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $basePath . '/iiif-search'
+                );
+                throw new ModuleCannotInstallException($message);
+            }
+
             $contentStore = $settings->get('extractocr_content_store', []);
             $pos = array_search('media_xml', $contentStore);
             if ($pos !== false) {
@@ -369,19 +391,30 @@ class Module extends AbstractModule
     /**
      * Check or create the destination folder.
      *
-     * @param string $dirPath
-     * @return bool
+     * @param string $dirPath Absolute path.
+     * @return string|null
      */
-    protected function checkDir($dirPath)
+    protected function checkDestinationDir(string $dirPath): ?string
     {
-        if (!file_exists($dirPath)) {
-            if (!is_writeable(dirname($dirPath))) {
-                return false;
+        if (file_exists($dirPath)) {
+            if (!is_dir($dirPath) || !is_readable($dirPath) || !is_writeable($dirPath)) {
+                $this->getServiceLocator()->get('Omeka\Logger')->err(new Message(
+                    'The directory "%s" is not writeable.', // @translate
+                    $dirPath
+                ));
+                return null;
             }
-            @mkdir($dirPath, 0755, true);
-        } elseif (!is_dir($dirPath) || !is_writeable($dirPath)) {
-            return false;
+            return $dirPath;
         }
-        return true;
+
+        $result = @mkdir($dirPath, 0775, true);
+        if (!$result) {
+            $this->getServiceLocator()->get('Omeka\Logger')->err(new Message(
+                'The directory "%1$s" is not writeable: %2$s.', // @translate
+                $dirPath, error_get_last()['message']
+            ));
+            return null;
+        }
+        return $dirPath;
     }
 }
