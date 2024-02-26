@@ -6,6 +6,7 @@ use DateTime;
 use DOMDocument;
 use Exception;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
+use Omeka\Api\Representation\ItemRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\File\TempFile;
 use Omeka\Job\AbstractJob;
@@ -575,7 +576,7 @@ class ExtractOcr extends AbstractJob
     /**
      * Extract and store OCR Data from pdf in .xml file
      */
-    protected function pdfToXmlTempFile(string $pdfFilepath, $item): ?TempFile
+    protected function pdfToXmlTempFile(string $pdfFilepath, ItemRepresentation $item): ?TempFile
     {
         $tempFile = $this->tempFileFactory->build();
 
@@ -662,9 +663,9 @@ class ExtractOcr extends AbstractJob
         return $tempFile;
     }
 
-    protected function extractTextToTsv($pdfFilepath, $tsvFilepath, $item) : bool
+    protected function extractTextToTsv($pdfFilepath, $tsvFilepath, ItemRepresentation $item) : bool
     {
-        $listMedia = $this->listMedia($item);
+        $listMediaImages = $this->listMediaImagesData($item);
 
         // Create temp file.
         $tempFile = $this->tempFileFactory->build();
@@ -709,12 +710,16 @@ class ExtractOcr extends AbstractJob
         foreach ($xml->body->doc->page ?? [] as $xmlPage) {
             ++$indexXmlPage;
 
-            $attributesPage = $xmlPage->attributes();
-            $widthPage = $attributesPage->width;
-            $heightPage = $attributesPage->height;
+            $pageAttribute = $xmlPage->attributes();
+            $pageWidth = $pageAttribute->width;
+            $pageHeigth = $pageAttribute->height;
 
-            $scaleX = $listMedia[$indexXmlPage - 1]['width'] / $widthPage;
-            $scaleY = $listMedia[$indexXmlPage - 1]['height'] / $heightPage;
+            // There may be no media when there is only a single pdf without image.
+            $mediaImage = $listMediaImages[$indexXmlPage - 1] ?? null;
+            $mediaImageWidth = $mediaImage ? $mediaImage['width'] : $pageWidth;
+            $mediaImageHeight = $mediaImage ? $mediaImage['height'] : $pageHeigth;
+            $scaleX = $mediaImageWidth / $pageWidth;
+            $scaleY = $mediaImageHeight / $pageHeigth;
 
             foreach ($xmlPage->word ?? [] as $xmlword) {
                 $word = (string) $xmlword;
@@ -1065,7 +1070,7 @@ class ExtractOcr extends AbstractJob
         return $slug;
     }
 
-    protected function listMedia($item): array
+    protected function listMediaImagesData(ItemRepresentation $item): array
     {
         $imageSizes = [];
 
