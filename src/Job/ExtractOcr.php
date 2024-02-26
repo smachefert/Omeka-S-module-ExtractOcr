@@ -410,9 +410,19 @@ class ExtractOcr extends AbstractJob
     }
 
     /**
-     * Get the first media from item id, source name and extension.
+     * Get the first media from item id, source name, extension and media type.
      *
      * @todo Improve search of ocr pdf2xml files.
+     *
+     * Copy:
+     * @see \ExtractOcr\Module::getMediaFromFilename()
+     * @see \ExtractOcr\Job\ExtractOcr::getMediaFromFilename()
+     *
+     * @param int $itemId
+     * @param string $filename
+     * @param string $extension
+     * @param string $mediaType
+     * @return \Omeka\Api\Representation\MediaRepresentation|null
      */
     protected function getMediaFromFilename(
         int $itemId,
