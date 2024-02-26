@@ -238,7 +238,7 @@ class ExtractOcr extends AbstractJob
         if ($itemIds) {
             $range = $this->exprRange('item_id', $itemIds);
             if ($range) {
-                $sql .= ' AND ' . implode(' AND ', $range);
+                $sql .= ' AND ((' . implode(') OR (', $range) . '))';
             }
         }
         $sql .= ' ORDER BY `item_id` ASC';
