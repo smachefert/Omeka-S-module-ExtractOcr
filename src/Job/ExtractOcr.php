@@ -438,7 +438,10 @@ class ExtractOcr extends AbstractJob
                 $tempFile->delete();
 
                 if ($hasOcrFile || $ocrMedia) {
-                    // Text content is already stored in medias pdf and ocr.
+                    // Text content is already stored in media ocr.
+                    if ($this->store['media_pdf']) {
+                        $this->storeContentInProperty($pdfMedia, $textContent);
+                    }
                     if ($this->store['item']) {
                         $this->storeContentInProperty($item, $textContent);
                     }
@@ -663,26 +666,19 @@ class ExtractOcr extends AbstractJob
             'values_json' => '{}',
         ];
 
-        if ($this->property && strlen((string) $textContent)) {
-            // The text content can be stored in media or just after in item, so
-            // it is stored in a class property.
-            if ($this->store['media_pdf']) {
-                $this->storeContentInProperty($pdfMedia, $textContent);
-            }
-            if ($this->store['media_extracted']) {
-                $data[$this->property->term()][] = [
-                    'type' => 'literal',
-                    'property_id' => $this->property->id(),
-                    '@value' => $textContent ,
-                    '@language' => $this->language,
-                ];
-                $data['dcterms:isFormatOf'][] = [
-                    'type' => 'resource:media',
-                    // dcterms:isFormatOf.
-                    'property_id' => 37,
-                    'value_resource_id' => $pdfMedia->id(),
-                ];
-            }
+        if ($this->property && strlen((string) $textContent) && $this->store['media_extracted']) {
+            $data[$this->property->term()][] = [
+                'type' => 'literal',
+                'property_id' => $this->property->id(),
+                '@value' => $textContent ,
+                '@language' => $this->language,
+            ];
+            $data['dcterms:isFormatOf'][] = [
+                'type' => 'resource:media',
+                // dcterms:isFormatOf.
+                'property_id' => 37,
+                'value_resource_id' => $pdfMedia->id(),
+            ];
         }
 
         try {
