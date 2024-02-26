@@ -327,9 +327,17 @@ class Module extends AbstractModule
         /** @var \Omeka\Entity\Item $item */
         $item = $response->getContent();
 
+        $extensions = [
+            \ExtractOcr\Job\ExtractOcr::FORMAT_ALTO => 'alto.xml',
+            \ExtractOcr\Job\ExtractOcr::FORMAT_PDF2XML => 'xml',
+            \ExtractOcr\Job\ExtractOcr::FORMAT_TSV => 'tsv',
+        ];
         $settings = $services->get('Omeka\Settings');
-        $targetMediaType = $settings->get('extractocr_media_type') ?? 'text/tab-separated-values';
-        $targetExtension = $targetMediaType === 'text/tab-separated-values' ? '.tsv' : '.xml';
+        $targetMediaType = $settings->get('extractocr_media_type') ?: 'text/tab-separated-values';
+        $targetExtension = $extensions[$this->targetMediaType] ?? null;
+        if (!$targetExtension) {
+            return;
+        }
 
         $hasPdf = false;
         $targetFilename = null;
@@ -344,12 +352,12 @@ class Module extends AbstractModule
                 $targetFilename = strlen($filename)
                     ? basename($filename, '.pdf')
                     : $media->id() . '-' . $media->getStorageId();
-                $targetFilename .= $targetExtension;
+                $targetFilename .= '.' . $targetExtension;
                 break;
             }
         }
 
-        if (!$hasPdf || $targetFilename === '.tsv' || $targetFilename === '.xml') {
+        if (!$hasPdf || $targetFilename === '.tsv' || $targetFilename === '.alto.xml' || $targetFilename === '.xml') {
             return;
         }
 
@@ -357,8 +365,9 @@ class Module extends AbstractModule
         if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'tsv', $targetMediaType)) {
             return;
         }
-
-        // Don't override an already processed pdf when updating an item.
+        if ($this->getMediaFromFilename($item->getId(), $targetFilename . '.alto', 'xml', $targetMediaType)) {
+            return;
+        }
         if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'xml', $targetMediaType)) {
             return;
         }

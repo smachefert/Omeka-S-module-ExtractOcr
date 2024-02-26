@@ -153,7 +153,7 @@ class ExtractOcr extends AbstractJob
         }
 
         $extensions = [
-            self::FORMAT_ALTO => 'xml',
+            self::FORMAT_ALTO => 'alto.xml',
             self::FORMAT_PDF2XML => 'xml',
             self::FORMAT_TSV => 'tsv',
         ];
