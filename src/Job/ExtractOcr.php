@@ -400,7 +400,7 @@ class ExtractOcr extends AbstractJob
             $ocrMedia = null;
             $tempFile = $this->extractOcrFromPdfMediaToTempFile($pdfMedia);
             if ($tempFile) {
-                $textContent = $this->extractTextFromTempFile($tempFile);
+                $textContent = $this->extractTextContent($pdfMedia, $tempFile);
                 if ($this->createMedia) {
                     // Do not create is only for media.
                     $doNotCreate = $this->targetMediaType !== self::FORMAT_TSV
@@ -528,7 +528,7 @@ class ExtractOcr extends AbstractJob
         }
     }
 
-    protected function extractOcrFromPdfMediaToTempFile(MediaRepresentation $pdfMedia): ?TempFile
+    protected function extractOcrFromPdfMediaToTempFile(MediaRepresentation $pdfMedia, bool $forceXml = false): ?TempFile
     {
         $pdfFilepath = $this->basePath . '/original/' . $pdfMedia->filename();
         if (!file_exists($pdfFilepath)) {
@@ -549,7 +549,10 @@ class ExtractOcr extends AbstractJob
         ];
 
         // Do the conversion of the pdf to xml.
-        $tempFile = $this->pdfToXmlTempFile($pdfFilepath, $pdfMedia->item());
+        $forceXmlForTsv = $forceXml && $this->targetMediaType === self::FORMAT_TSV;
+        $tempFile = $forceXmlForTsv
+            ? $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), 'xml', self::FORMAT_PDF2XML)
+            : $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), $this->targetExtension, $this->targetMediaType);
 
         if (empty($tempFile)) {
             $this->stats['issue'][] = $pdfMedia->id();
@@ -570,8 +573,21 @@ class ExtractOcr extends AbstractJob
         return $tempFile;
     }
 
-    protected function extractTextFromTempFile(TempFile $tempFile): ?string
+    /**
+     * Extract the text content of the pdf, reusing temp file when possible.
+     */
+    protected function extractTextContent(MediaRepresentation $pdfMedia, ?TempFile $tempFile = null): ?string
     {
+        // For tsv, reextract text from source.
+        $isTsv = $this->targetMediaType === self::FORMAT_TSV;
+        if ($isTsv || !$tempFile) {
+            $tempFile = $this->extractOcrFromPdfMediaToTempFile($pdfMedia, true);
+        }
+
+        if (!$tempFile) {
+            return null;
+        }
+
         $tempPath = $tempFile->getTempPath();
         $xmlContent = (string) file_get_contents($tempPath);
 
@@ -691,19 +707,23 @@ class ExtractOcr extends AbstractJob
     }
 
     /**
-     * Extract and store OCR Data from pdf in .xml file.
+     * Extract and store OCR Data from pdf in .xml or .tsv file.
      */
-    protected function pdfToXmlTempFile(string $pdfFilepath, ItemRepresentation $item): ?TempFile
-    {
+    protected function extractPdfToTempFile(
+        string $pdfFilepath,
+        ItemRepresentation $item,
+        string $extension,
+        string $mediaType
+    ): ?TempFile {
         $tempFile = $this->tempFileFactory->build();
 
-        $xmlFilepath = $tempFile->getTempPath() . '.' . $this->targetExtension;
+        $tempFilepath = $tempFile->getTempPath() . '.' . $extension;
         @unlink($tempFile->getTempPath());
-        $tempFile->setTempPath($xmlFilepath);
+        $tempFile->setTempPath($tempFilepath);
         $tempPath = $tempFile->getTempPath();
 
-        if ($this->targetMediaType === self::FORMAT_TSV) {
-            $result = $this->extractTextToTsv($pdfFilepath, $xmlFilepath, $item);
+        if ($mediaType === self::FORMAT_TSV) {
+            $result = $this->extractTextToTsv($pdfFilepath, $tempFilepath, $item);
             if (!$result) {
                 if ($tempPath && file_exists($tempPath)) {
                     $tempFile->delete();
@@ -714,10 +734,10 @@ class ExtractOcr extends AbstractJob
         }
 
         $command = sprintf('pdftohtml -i -c -hidden -nodrm -enc "UTF-8" -xml %1$s %2$s',
-            escapeshellarg($pdfFilepath), escapeshellarg($xmlFilepath));
+            escapeshellarg($pdfFilepath), escapeshellarg($tempFilepath));
 
         $result = $this->cli->execute($command);
-        if ($result === false || !file_exists($xmlFilepath) || !filesize($xmlFilepath)) {
+        if ($result === false || !file_exists($tempFilepath) || !filesize($tempFilepath)) {
             if ($tempPath && file_exists($tempPath)) {
                 $tempFile->delete();
             }
@@ -726,7 +746,7 @@ class ExtractOcr extends AbstractJob
 
         // Remove control characters from bad ocr.
         /** @see https://stackoverflow.com/questions/1497885/remove-control-characters-from-php-string */
-        $xmlContent = file_get_contents($xmlFilepath);
+        $xmlContent = file_get_contents($tempFilepath);
         $xmlContent = preg_replace('/[^\PCc^\PCn^\PCs]/u', '', $xmlContent);
 
         if ($this->fixUtf8) {
@@ -749,9 +769,9 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
-        $simpleXml->saveXML($xmlFilepath);
+        $simpleXml->saveXML($tempFilepath);
 
-        if ($this->targetMediaType === self::FORMAT_ALTO) {
+        if ($mediaType === self::FORMAT_ALTO) {
             /** @see https://gitlab.freedesktop.org/poppler/poppler/-/raw/master/utils/pdf2xml.dtd pdf2xml */
             $modulePath = dirname(__DIR__, 2);
             $xsltPath = $modulePath . '/data/xsl/pdf2xml_to_alto.xsl';
@@ -768,7 +788,7 @@ class ExtractOcr extends AbstractJob
             $dom->recover = true;
             $dom->preserveWhiteSpace = false;
             $dom->substituteEntities = true;
-            $result = $dom->save($xmlFilepath);
+            $result = $dom->save($tempFilepath);
             if (!$result) {
                 if ($tempPath && file_exists($tempPath)) {
                     $tempFile->delete();
