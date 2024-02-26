@@ -18,10 +18,20 @@ class ConfigForm extends Form
     {
         $this
             ->add([
+                'name' => 'extractocr_create_media',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Create a media with the extracted content and attach it to the item', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'extractocr_create_media',
+                ],
+            ])
+            ->add([
                 'name' => 'extractocr_media_type',
                 'type' => Element\Radio::class,
                 'options' => [
-                    'label' => 'Format of the xml content', // @translate
+                    'label' => 'Format of the extracted content', // @translate
                     'value_options' => [
                         'text/tab-separated-values' => 'tsv',
                         'application/alto+xml' => 'alto',
@@ -42,7 +52,7 @@ class ConfigForm extends Form
                     'value_options' => [
                         'item' => 'Item', // @translate
                         'media_pdf' => 'Pdf media', // @translate
-                        'media_extracted' => 'Tsv or Xml media', // @translate
+                        'media_extracted' => 'Tsv or Xml media if any', // @translate
                     ],
                 ],
                 'attributes' => [

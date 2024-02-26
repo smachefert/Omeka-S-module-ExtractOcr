@@ -125,6 +125,12 @@ class Module extends AbstractModule
                 $contentStore[] = 'media_extracted';
                 $settings->set('extractocr_content_store', array_values($contentStore));
             }
+
+            $settings->set('extractocr_create_media', true);
+            $message = new Message(
+                'A new option allows to store the file separately of the item. You can enable it by default.' // @translate
+            );
+            $messenger->addSuccess($message);
         }
 
         $this->allowFileFormats();
@@ -221,6 +227,7 @@ class Module extends AbstractModule
         $data = $form->getData();
 
         $settings = $services->get('Omeka\Settings');
+        $settings->set('extractocr_create_media', !empty($data['extractocr_create_media']));
         $settings->set('extractocr_media_type', $data['extractocr_media_type'] ?: 'text/tab-separated-values');
         $settings->set('extractocr_content_store', $data['extractocr_content_store']);
         $settings->set('extractocr_content_property', $data['extractocr_content_property']);
