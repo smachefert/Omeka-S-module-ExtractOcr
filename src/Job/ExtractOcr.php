@@ -363,6 +363,9 @@ class ExtractOcr extends AbstractJob
             'issue' => [],
         ];
 
+        // Create one xml by item, so don't manage multiple pdf by item (rare anyway).
+        $processedItems = [];
+
         $suffixFilenames = [
             self::FORMAT_ALTO=> '.alto',
             self::FORMAT_PDF2XML => '',
@@ -396,6 +399,14 @@ class ExtractOcr extends AbstractJob
 
             $pdfMedia = $this->api->read('media', ['id' => $pdfMediaId])->getContent();
             $item = $pdfMedia->item();
+            $itemId = $item->id();
+            if (isset($processedItems[$itemId])) {
+                $this->logger->warn(new Message(
+                    'Item #%d: only the first pdf is processed.' // @translate
+                ));
+                continue;
+            }
+            $processedItems[$itemId] = true;
 
             // TODO Improve search of an existing file, that can be imported separatly, or that can be another xml format with the same name.
             // Search if this item has already an xml file, managing double
