@@ -360,6 +360,10 @@ class ExtractOcr extends AbstractJob
                 $this->property = null;
             }
             $this->process($pdfMediaIds, $mode, $totalToProcess);
+            if ($this->shouldStop()) {
+                // The message is already displayed.
+                return;
+            }
         }
         if (count($targetTypesMedia) > 1) {
             $this->logger->notice(new Message(
