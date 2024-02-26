@@ -281,11 +281,12 @@ class Module extends AbstractModule
      */
     public function extractOcr(Event $event): void
     {
+        $services = $this->getServiceLocator();
         $response = $event->getParams()['response'];
         /** @var \Omeka\Entity\Item $item */
         $item = $response->getContent();
 
-        $settings = $this->getServiceLocator()->get('Omeka\Settings');
+        $settings = $services->get('Omeka\Settings');
         $targetMediaType = $settings->get('extractocr_media_type') ?? 'text/tab-separated-values';
         $targetExtension = $targetMediaType === 'text/tab-separated-values' ? '.tsv' : '.xml';
 
@@ -322,15 +323,15 @@ class Module extends AbstractModule
         }
 
         $params = [
-            'mode' => 'missing',
-            'baseUri' => $this->getBaseUri(),
-            'itemId' => $item->getId(),
+            'mode' => 'all',
+            'base_uri' => $this->getBaseUri(),
+            'item_id' => $item->getId(),
             // FIXME Currently impossible to save text with event api.update.post;
             'manual' => true,
         ];
-        $this->getServiceLocator()->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
+        $services->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
 
-        $messenger = $this->getServiceLocator()->get('ControllerPluginManager')->get('messenger');
+        $messenger = $services->get('ControllerPluginManager')->get('messenger');
         $message = new Message('Extracting OCR in background.'); // @translate
         $messenger->addNotice($message);
     }
