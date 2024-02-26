@@ -18,20 +18,10 @@ class ConfigForm extends Form
     {
         $this
             ->add([
-                'name' => 'extractocr_create_media',
-                'type' => Element\Checkbox::class,
-                'options' => [
-                    'label' => 'Create a media with the extracted content and attach it to the item', // @translate
-                ],
-                'attributes' => [
-                    'id' => 'extractocr_create_media',
-                ],
-            ])
-            ->add([
-                'name' => 'extractocr_media_types',
+                'name' => 'extractocr_types_files',
                 'type' => Element\MultiCheckbox::class,
                 'options' => [
-                    'label' => 'Formats of the extracted content', // @translate
+                    'label' => 'Create file for formats', // @translate
                     'value_options' => [
                         'text/tab-separated-values' => 'tsv (quick search in with module iiif search)',
                         'application/alto+xml' => 'alto (ocr transcription for iiif server)',
@@ -39,7 +29,22 @@ class ConfigForm extends Form
                     ],
                 ],
                 'attributes' => [
-                    'id' => 'extractocr_media_types',
+                    'id' => 'extractocr_types_files',
+                ],
+            ])
+            ->add([
+                'name' => 'extractocr_types_media',
+                'type' => Element\MultiCheckbox::class,
+                'options' => [
+                    'label' => 'Create media for formats', // @translate
+                    'value_options' => [
+                        'text/tab-separated-values' => 'tsv (quick search in with module iiif search)',
+                        'application/alto+xml' => 'alto (ocr transcription for iiif server)',
+                        'application/vnd.pdf2xml+xml' => 'pdf2xml',
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'extractocr_types_media',
                 ],
             ])
             ->add([
@@ -146,6 +151,14 @@ class ConfigForm extends Form
             ]);
 
         $this->getInputFilter()
+            ->add([
+                'name' => 'extractocr_types_files',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'extractocr_types_media',
+                'required' => false,
+            ])
             ->add([
                 'name' => 'extractocr_content_store',
                 'required' => false,

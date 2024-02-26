@@ -20,11 +20,10 @@ return [
     ],
     'extractocr' => [
         'config' => [
-            'extractocr_create_media' => false,
             // Don't set a default option to avoid issue with config form.
             // The option is set on install.
-            'extractocr_media_types' => [],
-            // Don't set a default option to avoid issue with config form.
+            'extractocr_types_files' => [],
+            'extractocr_types_media' => [],
             'extractocr_content_store' => [],
             'extractocr_content_property' => 'bibo:content',
             'extractocr_content_language' => '',

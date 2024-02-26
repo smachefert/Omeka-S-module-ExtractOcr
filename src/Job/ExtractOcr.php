@@ -158,20 +158,43 @@ class ExtractOcr extends AbstractJob
 
         $settings = $services->get('Omeka\Settings');
 
-        $targetMediaTypes = $settings->get('extractocr_media_types') ?: [];
-        $targetMediaTypes = array_values(array_intersect($targetMediaTypes, array_flip($extensions)));
-        if (!$targetMediaTypes) {
+        $targetTypesFiles = $settings->get('extractocr_types_files') ?: [];
+        $targetTypesFiles = array_values(array_intersect($targetTypesFiles, array_flip($extensions)));
+        $targetTypesMedia = $settings->get('extractocr_types_media') ?: [];
+        $targetTypesMedia = array_values(array_intersect($targetTypesMedia, array_flip($extensions)));
+        if (!$targetTypesFiles && !$targetTypesMedia) {
             $this->logger->warn(new Message(
                 'No extract format to process.' // @translate
             ));
             return;
         }
 
-        if (in_array(self::FORMAT_ALTO, $targetMediaTypes) && !class_exists('XSLTProcessor')) {
+        if ((in_array(self::FORMAT_ALTO, $targetTypesFiles) || in_array(self::FORMAT_ALTO, $targetTypesMedia))
+            && !class_exists('XSLTProcessor')
+        ) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(new Message(
                 'The php extension "xml" or "xsl" is required to extract text as xml alto.' // @translate
             ));
+            return;
+        }
+
+        if (in_array(self::FORMAT_TSV, $targetTypesFiles)
+            && !$this->checkDestinationDir($this->basePath . '/iiif-search')
+        ) {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+            return;
+        }
+        if (in_array(self::FORMAT_ALTO, $targetTypesFiles)
+            && !$this->checkDestinationDir($this->basePath . '/alto')
+        ) {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+            return;
+        }
+        if (in_array(self::FORMAT_PDF2XML, $targetTypesFiles)
+            && !$this->checkDestinationDir($this->basePath . '/pdf2xml')
+        ) {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             return;
         }
 
@@ -204,23 +227,7 @@ class ExtractOcr extends AbstractJob
             }
         }
 
-        $this->createMedia = (bool) $settings->get('extractocr_create_media');
         $this->createEmptyFile = (bool) $settings->get('extractocr_create_empty_file');
-
-        if (!$this->createMedia) {
-            if (!$this->checkDestinationDir($this->basePath . '/iiif-search')) {
-                $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-                return;
-            }
-            if (!$this->checkDestinationDir($this->basePath . '/alto')) {
-                $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-                return;
-            }
-            if (!$this->checkDestinationDir($this->basePath . '/pdf2xml')) {
-                $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-                return;
-            }
-        }
 
         // It's not possible to search multiple item ids, so use the connection.
         // SInce the job can be sent only by an admin, there is no rights issue.
@@ -288,7 +295,7 @@ class ExtractOcr extends AbstractJob
 
         $message = new Message(sprintf(
             'Formats of xml files to create: %s.', // @translate,
-            implode(', ', array_intersect_key($formats, $targetMediaTypes))
+            implode(', ', array_intersect_key($formats, $targetTypesMedia))
         ));
 
         if ($mode === 'existing') {
@@ -320,18 +327,28 @@ class ExtractOcr extends AbstractJob
         // Clean and reorder media types to extract tsv, then pdf2xml then alto
         // to simplify storage of text as value.
         // Indeed, the text is not extracted directly for format alto.
-        $targetMediaTypes = array_values(array_intersect([self::FORMAT_TSV, self::FORMAT_PDF2XML, self::FORMAT_ALTO], $targetMediaTypes));
+        $targetTypesMedia = array_values(array_intersect([self::FORMAT_TSV, self::FORMAT_PDF2XML, self::FORMAT_ALTO], $targetTypesMedia));
 
         // TODO Currently, the process create the files via a loop by media types. Restructure it to do it one time by item.
 
-        foreach (array_values($targetMediaTypes) as $key => $targetMediaType) {
-            $this->targetMediaType = $targetMediaType;
+        // Create a single table to process a single loop.
+        // Most of the time, there are one or two formats.
+        $create = [];
+        foreach ($targetTypesFiles as $targetType) {
+            $create[] = ['create_media' => false, 'media_type' => $targetType];
+        }
+        foreach ($targetTypesMedia as $targetType) {
+            $create[] = ['create_media' => true, 'media_type' => $targetType];
+        }
+        foreach ($create as $key => $targetData) {
+            $this->createMedia = $targetData['create_media'];
+            $this->targetMediaType = $targetData['media_type'];
             $this->targetDirPath = $dirPaths[$this->targetMediaType];
             $this->targetExtension = $extensions[$this->targetMediaType];
-            if (count($targetMediaTypes) > 1) {
+            if (count($targetTypesMedia) > 1) {
                 $this->logger->notice(new Message(
                     'Processing format %1$d/%2$d: %3$s (%4$s).', // @translate
-                    $key + 1, count($targetMediaTypes), $formats[$targetMediaType], $targetMediaType
+                    $key + 1, count($targetTypesMedia), $formats[$this->targetMediaType], $this->targetMediaType
                 ));
             }
             if ($key > 0) {
@@ -344,7 +361,7 @@ class ExtractOcr extends AbstractJob
             }
             $this->process($pdfMediaIds, $mode, $totalToProcess);
         }
-        if (count($targetMediaTypes) > 1) {
+        if (count($targetTypesMedia) > 1) {
             $this->logger->notice(new Message(
                 'End of processing formats.', // @translate
             ));

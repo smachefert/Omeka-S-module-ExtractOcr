@@ -86,9 +86,13 @@ class Module extends AbstractModule
             $settings->set($name, $value);
         }
 
-        $settings->set('extractocr_media_types', [
+        $settings->set('extractocr_types_files', [
             'text/tab-separated-values',
             'application/alto+xml',
+        ]);
+
+        $settings->set('extractocr_content_store', [
+            'media_pdf',
         ]);
 
         $this->allowFileFormats();
@@ -181,8 +185,15 @@ class Module extends AbstractModule
             $extractMediaType = $settings->get('extractocr_media_type', 'text/tab-separated-values') ?: 'text/tab-separated-values';
             $settings->set('extractocr_media_types', [$extractMediaType]);
             $settings->delete('extractocr_media_type');
+
+            // The option is set true above during upgrade to keep old process.
+            $settings->set('extractocr_types_files', []);
+            $settings->set('extractocr_types_media', [$extractMediaType]);
+            $settings->delete('extractocr_media_types');
+            $settings->delete('extractocr_create_media');
+
             $message = new Message(
-                'It is now possible to store multiple extracted files, for example one for quick search and another one to display transcription.' // @translate
+                'It is now possible to store multiple extracted files and medias, for example one for quick search and another one to display transcription.' // @translate
             );
             $messenger->addSuccess($message);
         }
@@ -281,8 +292,8 @@ class Module extends AbstractModule
         $data = $form->getData();
 
         $settings = $services->get('Omeka\Settings');
-        $settings->set('extractocr_create_media', !empty($data['extractocr_create_media']));
-        $settings->set('extractocr_media_types', $data['extractocr_media_types'] ?: []);
+        $settings->set('extractocr_types_files', $data['extractocr_types_files'] ?? []);
+        $settings->set('extractocr_types_media', $data['extractocr_types_media'] ?? []);
         $settings->set('extractocr_content_store', $data['extractocr_content_store']);
         $settings->set('extractocr_content_property', $data['extractocr_content_property']);
         $settings->set('extractocr_content_language', $data['extractocr_content_language']);
@@ -346,9 +357,11 @@ class Module extends AbstractModule
             \ExtractOcr\Job\ExtractOcr::FORMAT_TSV => 'tsv',
         ];
         $settings = $services->get('Omeka\Settings');
-        $targetMediaTypes = $settings->get('extractocr_media_types') ?: [];
-        $targetMediaTypes = array_intersect($targetMediaTypes, array_flip($extensions));
-        if (!$targetMediaTypes) {
+        $targetTypesFiles = $settings->get('extractocr_types_files') ?: [];
+        $targetTypesFiles = array_intersect($targetTypesFiles, array_flip($extensions));
+        $targetTypesMedia = $settings->get('extractocr_types_media') ?: [];
+        $targetTypesMedia = array_intersect($targetTypesMedia, array_flip($extensions));
+        if (!$targetTypesFiles && !$targetTypesMedia ) {
             return;
         }
 
@@ -395,32 +408,33 @@ class Module extends AbstractModule
         ];
 
         // Don't override an already processed pdf when updating an item.
-        $existingMedias = array_fill_keys($targetMediaTypes, false);
-        $createMedia = (bool) $settings->get('extractocr_create_media', false);
-        if ($createMedia) {
-            foreach ($targetMediaTypes as $targetMediaType) {
+        $existingFiles = array_fill_keys($targetTypesFiles, false);
+        if ($targetTypesFiles) {
+            $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+            foreach ($targetTypesFiles as $targetTypeFile) {
+                $targetExtension = $extensions[$targetTypeFile];
+                $targetDirPath = $dirPaths[$targetExtension];
+                $localSearchFilepath = $basePath . '/' . $targetDirPath . '/' . $item->id() . '.' . $targetExtension;
+                if (file_exists($localSearchFilepath)) {
+                    $existingFiles[$targetTypeFile] = true;
+                }
+            }
+        }
+        $existingMedias = array_fill_keys($targetTypesMedia, false);
+        if ($targetTypesMedia) {
+            foreach ($targetTypesMedia as $targetMediaType) {
                 $targetExtension = $extensions[$targetMediaType];
                 $targetFilename = $targetFilenameNoExtension . '.' . $targetExtension;
                 if ($this->getMediaFromFilename($item->getId(), $targetFilename . $suffixFilenames[$targetExtension], $shortExtensions[$targetExtension], $targetMediaType)) {
                     $existingMedias[$targetMediaType] = true;
                 }
             }
-            if (count(array_filter($existingMedias)) === count($existingMedias)) {
-                return;
-            }
-        } else {
-            $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-            foreach ($targetMediaTypes as $targetMediaType) {
-                $targetDirPath = $dirPaths[$targetExtension];
-                $targetExtension = $extensions[$targetMediaType];
-                $localSearchFilepath = $basePath . '/' . $targetDirPath . '/' . $item->id() . '.' . $targetExtension;
-                if (file_exists($localSearchFilepath)) {
-                    $existingMedias[$targetMediaType] = true;
-                }
-            }
-            if (count(array_filter($existingMedias)) === count($existingMedias)) {
-                return;
-            }
+        }
+
+        if (count(array_filter($existingFiles)) === count($existingFiles)
+            && count(array_filter($existingMedias)) === count($existingMedias)
+        ) {
+            return;
         }
 
         $params = [
