@@ -597,7 +597,8 @@ class ExtractOcr extends AbstractJob
         if ($this->targetMediaType === self::FORMAT_ALTO) {
             $textContent = $this->extractTextFromAlto($xmlContent);
         } else {
-            $textContent = trim(strip_tags($xmlContent));
+            // Add a space between words.
+            $textContent = trim(str_replace('  ', ' ', strip_tags( str_replace('<', ' <', $xmlContent))));
         }
 
         return $textContent;
