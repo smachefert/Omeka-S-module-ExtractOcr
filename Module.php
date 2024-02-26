@@ -196,6 +196,11 @@ class Module extends AbstractModule
                 'It is now possible to store multiple extracted files and medias, for example one for quick search and another one to display transcription.' // @translate
             );
             $messenger->addSuccess($message);
+
+            $message = new Message(
+                'In order to manage multiple derivative files and to avoid collisions with native files, the names of the file were updated. You should remove all existing created files (via search media by media type then delete) then recreate them all (via the job in config form).' // @translate
+            );
+            $messenger->addWarning($message);
         }
 
         $this->allowFileFormats();
