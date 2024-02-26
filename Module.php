@@ -313,7 +313,7 @@ class Module extends AbstractModule
 
         $args = [];
         $args['mode'] = $params['mode'] ?? 'all';
-        $args['baseUri'] = $this->getBaseUri();
+        $args['base_uri'] = $this->getBaseUri();
         $args['item_ids'] = $params['item_ids'] ?? '';
 
         $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
