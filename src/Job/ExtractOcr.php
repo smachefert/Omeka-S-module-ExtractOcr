@@ -423,7 +423,8 @@ class ExtractOcr extends AbstractJob
             $itemId = $item->id();
             if (isset($processedItems[$itemId])) {
                 $this->logger->warn(new Message(
-                    'Item #%d: only the first pdf is processed.' // @translate
+                    'Item #%d: only the first pdf is processed.', // @translate
+                    $itemId
                 ));
                 continue;
             }
