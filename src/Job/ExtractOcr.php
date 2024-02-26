@@ -78,6 +78,11 @@ class ExtractOcr extends AbstractJob
     /**
      * @var string
      */
+    protected $targetDirPath;
+
+    /**
+     * @var string
+     */
     protected $targetExtension;
 
     /**
@@ -118,6 +123,7 @@ class ExtractOcr extends AbstractJob
         $this->cli = $services->get('Omeka\Cli');
         $this->baseUri = $this->getArg('base_uri');
         $this->basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+
         if (!$this->checkDestinationDir($this->basePath . '/temp')) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(new Message(
@@ -146,7 +152,19 @@ class ExtractOcr extends AbstractJob
             return;
         }
 
-        $this->targetExtension = $this->targetMediaType === self::FORMAT_TSV ? 'tsv' : 'xml';
+        $extensions = [
+            self::FORMAT_ALTO => 'xml',
+            self::FORMAT_PDF2XML => 'xml',
+            self::FORMAT_TSV => 'tsv',
+        ];
+        $this->targetExtension = $extensions[$this->targetMediaType];
+
+        $dirs = [
+            self::FORMAT_ALTO => 'alto',
+            self::FORMAT_PDF2XML => 'pdf2xml',
+            self::FORMAT_TSV => 'iiif-search',
+        ];
+        $this->targetDirPath = $dirs[$this->targetMediaType] ?? null;
 
         $mode = $this->getArg('mode') ?: 'all';
         $itemId = (int) $this->getArg('item_id');
@@ -182,6 +200,14 @@ class ExtractOcr extends AbstractJob
 
         if (!$this->createMedia) {
             if (!$this->checkDestinationDir($this->basePath . '/iiif-search')) {
+                $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+                return;
+            }
+            if (!$this->checkDestinationDir($this->basePath . '/alto')) {
+                $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+                return;
+            }
+            if (!$this->checkDestinationDir($this->basePath . '/pdf2xml')) {
                 $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
                 return;
             }
@@ -295,14 +321,6 @@ class ExtractOcr extends AbstractJob
             'issue' => [],
         ];
 
-        /*
-        $extensions = [
-            self::FORMAT_ALTO => 'xml',
-            self::FORMAT_PDF2XML => 'xml',
-            self::FORMAT_TSV => 'tsv',
-        ];
-        */
-
         foreach ($pdfMediaIds as $pdfMediaId) {
             if ($this->shouldStop()) {
                 if ($mode === 'all') {
@@ -325,21 +343,14 @@ class ExtractOcr extends AbstractJob
             $pdfMedia = $this->api->read('media', ['id' => $pdfMediaId])->getContent();
             $item = $pdfMedia->item();
 
-            if (in_array($this->targetMediaType, [self::FORMAT_ALTO, self::FORMAT_PDF2XML])) {
-                // Search if this item has already an xml file.
-                $targetFilename = basename($pdfMedia->source(), '.pdf') . '.xml';
-                // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
-                $searchExistingOcrMedia = $this->getMediaFromFilename($item->id(), $targetFilename, 'xml', $this->targetMediaType);
-            } elseif ($this->targetMediaType === self::FORMAT_TSV) {
-                // Search if this item has already a tsv file.
-                $targetFilename = basename($pdfMedia->source(), '.pdf') . '.tsv';
-                // TODO Improve search of an existing xml, that can be imported separatly, or that can be another xml format with the same name.
-                $searchExistingOcrMedia = $this->getMediaFromFilename($item->id(), $targetFilename, 'tsv', $this->targetMediaType);
-            } else {
-                return;
-            }
+            // TODO Improve search of an existing file, that can be imported separatly, or that can be another xml format with the same name.
+            // Search if this item has already an xml file.
+            // For security and to avoid to remove native xml, in particular
+            // alto, append the item id for the base of the derivative file.
+            $targetFilename = basename($pdfMedia->source(), '.pdf') . '.' . $item->id() . '.' . $this->targetExtension;
+            $searchExistingOcrMedia = $this->getMediaFromFilename($item->id(), $targetFilename, $this->targetExtension, $this->targetMediaType);
 
-            $localSearchFilepath = $this->basePath . '/iiif-search/' . $item->id() . '.' . $this->targetExtension;
+            $localSearchFilepath = $this->basePath . '/' . $this->targetDirPath . '/' . $item->id() . '.' . $this->targetExtension;
             $searchExistingOcrFile = file_exists($localSearchFilepath);
 
             ++$countPdf;
@@ -648,14 +659,15 @@ class ExtractOcr extends AbstractJob
             return null;
         }
 
-        $currentPosition = count($pdfMedia->item()->media());
+        $item = $pdfMedia->item();
+        $currentPosition = count($item->media());
 
         // This data is important to get the matching pdf and xml.
-        $source = basename($pdfMedia->source(), '.pdf') . '.' . $this->targetExtension;
+        $source = basename($pdfMedia->source(), '.pdf') . '.' . $item->id() . '.' . $this->targetExtension;
 
         $data = [
             'o:item' => [
-                'o:id' => $pdfMedia->item()->id(),
+                'o:id' => $item->id(),
             ],
             'o:ingester' => 'url',
             'ingest_url' => $storeFile['url'],

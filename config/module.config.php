@@ -21,7 +21,9 @@ return [
     'extractocr' => [
         'config' => [
             'extractocr_create_media' => false,
-            'extractocr_media_type' => 'text/tab-separated-values',
+            // Don't set a default option to avoid issue with config form.
+            // The option is set on install.
+            'extractocr_media_types' => [],
             // Don't set a default option to avoid issue with config form.
             'extractocr_content_store' => [],
             'extractocr_content_property' => 'bibo:content',
