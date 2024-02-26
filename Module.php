@@ -86,6 +86,11 @@ class Module extends AbstractModule
             $settings->set($name, $value);
         }
 
+        $settings->set('extractocr_media_types', [
+            'text/tab-separated-values',
+            'application/alto+xml',
+        ]);
+
         $this->allowFileFormats();
     }
 
@@ -170,6 +175,14 @@ class Module extends AbstractModule
             $settings->set('extractocr_create_media', true);
             $message = new Message(
                 'A new option allows to store the file separately of the item. You can enable it by default.' // @translate
+            );
+            $messenger->addSuccess($message);
+
+            $extractMediaType = $settings->get('extractocr_media_type', 'text/tab-separated-values') ?: 'text/tab-separated-values';
+            $settings->set('extractocr_media_types', [$extractMediaType]);
+            $settings->delete('extractocr_media_type');
+            $message = new Message(
+                'It is now possible to store multiple extracted files, for example one for quick search and another one to display transcription.' // @translate
             );
             $messenger->addSuccess($message);
         }
@@ -269,7 +282,7 @@ class Module extends AbstractModule
 
         $settings = $services->get('Omeka\Settings');
         $settings->set('extractocr_create_media', !empty($data['extractocr_create_media']));
-        $settings->set('extractocr_media_type', $data['extractocr_media_type'] ?: 'text/tab-separated-values');
+        $settings->set('extractocr_media_types', $data['extractocr_media_types'] ?: []);
         $settings->set('extractocr_content_store', $data['extractocr_content_store']);
         $settings->set('extractocr_content_property', $data['extractocr_content_property']);
         $settings->set('extractocr_content_language', $data['extractocr_content_language']);
@@ -333,12 +346,13 @@ class Module extends AbstractModule
             \ExtractOcr\Job\ExtractOcr::FORMAT_TSV => 'tsv',
         ];
         $settings = $services->get('Omeka\Settings');
-        $targetMediaType = $settings->get('extractocr_media_type') ?: 'text/tab-separated-values';
-        $targetExtension = $extensions[$this->targetMediaType] ?? null;
-        if (!$targetExtension) {
+        $targetMediaTypes = $settings->get('extractocr_media_types') ?: [];
+        $targetMediaTypes = array_intersect($targetMediaTypes, array_flip($extensions));
+        if (!$targetMediaTypes) {
             return;
         }
 
+        // Get the pdf.
         $hasPdf = false;
         $targetFilename = null;
         /** @var \Omeka\Entity\Media $media */
@@ -347,29 +361,66 @@ class Module extends AbstractModule
             $extension = strtolower((string) $media->getExtension());
             if ($mediaType === 'application/pdf' && $extension === 'pdf') {
                 $hasPdf = true;
-                $source = (string) $media->getSource();
-                $filename = (string) parse_url($source, PHP_URL_PATH);
-                $targetFilename = strlen($filename)
-                    ? basename($filename, '.pdf')
-                    : $media->id() . '-' . $media->getStorageId();
-                $targetFilename .= '.' . $targetExtension;
                 break;
             }
         }
 
-        if (!$hasPdf || $targetFilename === '.tsv' || $targetFilename === '.alto.xml' || $targetFilename === '.xml') {
+        if (!$hasPdf) {
             return;
         }
 
+        $source = (string) $media->getSource();
+        $filename = (string) parse_url($source, PHP_URL_PATH);
+        $targetFilenameNoExtension = strlen($filename)
+            ? basename($filename, '.pdf')
+            : $media->id() . '-' . $media->getStorageId();
+        if (!$targetFilename) {
+            return;
+        }
+
+        $suffixFilenames = [
+            'alto.xml' => '.alto',
+            'xml' => '',
+            'tsv' => '',
+        ];
+        $shortExtensions = [
+            'alto.xml' => 'xml',
+            'xml' => 'xml',
+            'tsv' => 'tsv',
+        ];
+        $dirPaths = [
+            'alto.xml' => 'alto',
+            'pdf2xml' => 'pdf2xml',
+            'tsv' => 'iiif-search',
+        ];
+
         // Don't override an already processed pdf when updating an item.
-        if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'tsv', $targetMediaType)) {
-            return;
-        }
-        if ($this->getMediaFromFilename($item->getId(), $targetFilename . '.alto', 'xml', $targetMediaType)) {
-            return;
-        }
-        if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'xml', $targetMediaType)) {
-            return;
+        $existingMedias = array_fill_keys($targetMediaTypes, false);
+        $createMedia = (bool) $settings->get('extractocr_create_media', false);
+        if ($createMedia) {
+            foreach ($targetMediaTypes as $targetMediaType) {
+                $targetExtension = $extensions[$targetMediaType];
+                $targetFilename = $targetFilenameNoExtension . '.' . $targetExtension;
+                if ($this->getMediaFromFilename($item->getId(), $targetFilename . $suffixFilenames[$targetExtension], $shortExtensions[$targetExtension], $targetMediaType)) {
+                    $existingMedias[$targetMediaType] = true;
+                }
+            }
+            if (count(array_filter($existingMedias)) === count($existingMedias)) {
+                return;
+            }
+        } else {
+            $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+            foreach ($targetMediaTypes as $targetMediaType) {
+                $targetDirPath = $dirPaths[$targetExtension];
+                $targetExtension = $extensions[$targetMediaType];
+                $localSearchFilepath = $basePath . '/' . $targetDirPath . '/' . $item->id() . '.' . $targetExtension;
+                if (file_exists($localSearchFilepath)) {
+                    $existingMedias[$targetMediaType] = true;
+                }
+            }
+            if (count(array_filter($existingMedias)) === count($existingMedias)) {
+                return;
+            }
         }
 
         $params = [

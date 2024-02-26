@@ -132,39 +132,48 @@ class ExtractOcr extends AbstractJob
             return;
         }
 
+        if (!$this->baseUri) {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+            $this->logger->err(new Message(
+                'The base uri is unknown.' // @translate
+            ));
+            return;
+        }
+
+        $formats = [
+            self::FORMAT_ALTO => 'alto',
+            self::FORMAT_PDF2XML => 'pdf2xml',
+            self::FORMAT_TSV => 'tsv',
+        ];
+        $dirPaths = [
+            self::FORMAT_ALTO => 'alto',
+            self::FORMAT_PDF2XML => 'pdf2xml',
+            self::FORMAT_TSV => 'iiif-search',
+        ];
+        $extensions = [
+            self::FORMAT_ALTO => 'alto.xml',
+            self::FORMAT_PDF2XML => 'xml',
+            self::FORMAT_TSV => 'tsv',
+        ];
+
         $settings = $services->get('Omeka\Settings');
 
-        $mediaType = $settings->get('extractocr_media_type');
-        $this->targetMediaType = in_array(
-            $mediaType, [
-                self::FORMAT_ALTO,
-                self::FORMAT_PDF2XML,
-                self::FORMAT_TSV
-            ], true)
-            ? $mediaType
-            : self::FORMAT_TSV;
+        $targetMediaTypes = $settings->get('extractocr_media_types') ?: [];
+        $targetMediaTypes = array_values(array_intersect($targetMediaTypes, array_flip($extensions)));
+        if (!$targetMediaTypes) {
+            $this->logger->warn(new Message(
+                'No extract format to process.' // @translate
+            ));
+            return;
+        }
 
-        if ($this->targetMediaType === self::FORMAT_ALTO && !class_exists('XSLTProcessor')) {
+        if (in_array(self::FORMAT_ALTO, $targetMediaTypes) && !class_exists('XSLTProcessor')) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(new Message(
                 'The php extension "xml" or "xsl" is required to extract text as xml alto.' // @translate
             ));
             return;
         }
-
-        $extensions = [
-            self::FORMAT_ALTO => 'alto.xml',
-            self::FORMAT_PDF2XML => 'xml',
-            self::FORMAT_TSV => 'tsv',
-        ];
-        $this->targetExtension = $extensions[$this->targetMediaType];
-
-        $dirs = [
-            self::FORMAT_ALTO => 'alto',
-            self::FORMAT_PDF2XML => 'pdf2xml',
-            self::FORMAT_TSV => 'iiif-search',
-        ];
-        $this->targetDirPath = $dirs[$this->targetMediaType] ?? null;
 
         $mode = $this->getArg('mode') ?: 'all';
         $itemId = (int) $this->getArg('item_id');
@@ -277,40 +286,73 @@ class ExtractOcr extends AbstractJob
             return;
         }
 
-        $formats = [
-            self::FORMAT_ALTO => 'alto',
-            self::FORMAT_PDF2XML => 'pdf2xml',
-            self::FORMAT_TSV => 'tsv',
-        ];
         $message = new Message(sprintf(
-            'Format of xml files to create: %s.', // @translate,
-            $formats[$this->targetMediaType]
+            'Formats of xml files to create: %s.', // @translate,
+            implode(', ', array_intersect_key($formats, $targetMediaTypes))
         ));
 
         if ($mode === 'existing') {
             $message = new Message(
-                'Creating Extract OCR xml files for %d PDF only if they already exist.', // @translate
+                'Creating Extract OCR files for %d PDF only if they already exist.', // @translate
                 $totalToProcess
             );
         } elseif ($mode === 'missing') {
             $message = new Message(
-                'Creating Extract OCR xml files for %d PDF, only if they do not exist yet.', // @translate
+                'Creating Extract OCR files for %d PDF, only if they do not exist yet.', // @translate
                 $totalToProcess
             );
         } elseif ($mode === 'all') {
             $message = new Message(
-                'Creating Extract OCR xml files for %d PDF, xml files will be overridden or created.', // @translate
+                'Creating Extract OCR files for %d PDF, xml files will be overridden or created.', // @translate
                 $totalToProcess
             );
         } else {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $message = new Message(
                 'Mode of extraction "%s" is not managed.', // @translate
                 $mode
             );
+            $this->logger->err($message);
             return;
         }
         $this->logger->info($message);
 
+        // Clean and reorder media types to extract tsv, then pdf2xml then alto
+        // to simplify storage of text as value.
+        // Indeed, the text is not extracted directly for format alto.
+        $targetMediaTypes = array_values(array_intersect([self::FORMAT_TSV, self::FORMAT_PDF2XML, self::FORMAT_ALTO], $targetMediaTypes));
+
+        // TODO Currently, the process create the files via a loop by media types. Restructure it to do it one time by item.
+
+        foreach (array_values($targetMediaTypes) as $key => $targetMediaType) {
+            $this->targetMediaType = $targetMediaType;
+            $this->targetDirPath = $dirPaths[$this->targetMediaType];
+            $this->targetExtension = $extensions[$this->targetMediaType];
+            if (count($targetMediaTypes) > 1) {
+                $this->logger->notice(new Message(
+                    'Processing format %1$d/%2$d: %3$s (%4$s).', // @translate
+                    $key + 1, count($targetMediaTypes), $formats[$targetMediaType], $targetMediaType
+                ));
+            }
+            if ($key > 0) {
+                $this->store = [
+                    'item' => false,
+                    'media_pdf' => false,
+                    'media_extracted' => false,
+                ];
+                $this->property = null;
+            }
+            $this->process($pdfMediaIds, $mode, $totalToProcess);
+        }
+        if (count($targetMediaTypes) > 1) {
+            $this->logger->notice(new Message(
+                'End of processing formats.', // @translate
+            ));
+        }
+    }
+
+    protected function process($pdfMediaIds, $mode, $totalToProcess)
+    {
         $countPdf = 0;
         $countSkipped = 0;
         $countFailed = 0;
@@ -319,6 +361,17 @@ class ExtractOcr extends AbstractJob
             'no_pdf' => [],
             'no_text_layer' => [],
             'issue' => [],
+        ];
+
+        $suffixFilenames = [
+            self::FORMAT_ALTO=> '.alto',
+            self::FORMAT_PDF2XML => '',
+            self::FORMAT_TSV => '',
+        ];
+        $shortExtensions = [
+            self::FORMAT_ALTO => 'xml',
+            self::FORMAT_PDF2XML => 'xml',
+            self::FORMAT_TSV => 'tsv',
         ];
 
         foreach ($pdfMediaIds as $pdfMediaId) {
@@ -339,16 +392,20 @@ class ExtractOcr extends AbstractJob
 
             // Step 1: Check the presence of the file/media according to mode.
             // Remove existing file/media if needed.
+            // Only the file/media with the same format is removed.
 
             $pdfMedia = $this->api->read('media', ['id' => $pdfMediaId])->getContent();
             $item = $pdfMedia->item();
 
             // TODO Improve search of an existing file, that can be imported separatly, or that can be another xml format with the same name.
-            // Search if this item has already an xml file.
+            // Search if this item has already an xml file, managing double
+            // extension.
             // For security and to avoid to remove native xml, in particular
             // alto, append the item id for the base of the derivative file.
-            $targetFilename = basename($pdfMedia->source(), '.pdf') . '.' . $item->id() . '.' . $this->targetExtension;
-            $searchExistingOcrMedia = $this->getMediaFromFilename($item->id(), $targetFilename, $this->targetExtension, $this->targetMediaType);
+            $targetFilenameNoExtension = basename($pdfMedia->source(), '.pdf') . '.' . $item->id();
+            $shortExtension = $shortExtensions[$this->targetMediaType];
+            $targetFilename = $targetFilenameNoExtension . $suffixFilenames[$this->targetMediaType] . '.' . $shortExtension;
+            $searchExistingOcrMedia = $this->getMediaFromFilename($item->id(), $targetFilename, $shortExtension, $this->targetMediaType);
 
             $localSearchFilepath = $this->basePath . '/' . $this->targetDirPath . '/' . $item->id() . '.' . $this->targetExtension;
             $searchExistingOcrFile = file_exists($localSearchFilepath);

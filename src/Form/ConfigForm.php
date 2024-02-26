@@ -28,18 +28,18 @@ class ConfigForm extends Form
                 ],
             ])
             ->add([
-                'name' => 'extractocr_media_type',
-                'type' => Element\Radio::class,
+                'name' => 'extractocr_media_types',
+                'type' => Element\MultiCheckbox::class,
                 'options' => [
-                    'label' => 'Format of the extracted content', // @translate
+                    'label' => 'Formats of the extracted content', // @translate
                     'value_options' => [
-                        'text/tab-separated-values' => 'tsv',
-                        'application/alto+xml' => 'alto',
+                        'text/tab-separated-values' => 'tsv (quick search in with module iiif search)',
+                        'application/alto+xml' => 'alto (ocr transcription for iiif server)',
                         'application/vnd.pdf2xml+xml' => 'pdf2xml',
                     ],
                 ],
                 'attributes' => [
-                    'id' => 'extractocr_media_type',
+                    'id' => 'extractocr_media_types',
                 ],
             ])
             ->add([
