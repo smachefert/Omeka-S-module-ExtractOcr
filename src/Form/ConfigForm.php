@@ -18,18 +18,33 @@ class ConfigForm extends Form
     {
         $this
             ->add([
-                'name' => 'extractocr_media_type',
-                'type' => Element\Radio::class,
+                'name' => 'extractocr_types_files',
+                'type' => Element\MultiCheckbox::class,
                 'options' => [
-                    'label' => 'Format of the xml content', // @translate
+                    'label' => 'Create file for formats', // @translate
                     'value_options' => [
-                        'text/tab-separated-values' => 'tsv',
-                        'application/alto+xml' => 'alto',
+                        'text/tab-separated-values' => 'tsv (quick search in with module iiif search)',
+                        'application/alto+xml' => 'alto (ocr transcription for iiif server)',
                         'application/vnd.pdf2xml+xml' => 'pdf2xml',
                     ],
                 ],
                 'attributes' => [
-                    'id' => 'extractocr_media_type',
+                    'id' => 'extractocr_types_files',
+                ],
+            ])
+            ->add([
+                'name' => 'extractocr_types_media',
+                'type' => Element\MultiCheckbox::class,
+                'options' => [
+                    'label' => 'Create media for formats', // @translate
+                    'value_options' => [
+                        'text/tab-separated-values' => 'tsv (quick search in with module iiif search)',
+                        'application/alto+xml' => 'alto (ocr transcription for iiif server)',
+                        'application/vnd.pdf2xml+xml' => 'pdf2xml',
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'extractocr_types_media',
                 ],
             ])
             ->add([
@@ -42,7 +57,7 @@ class ConfigForm extends Form
                     'value_options' => [
                         'item' => 'Item', // @translate
                         'media_pdf' => 'Pdf media', // @translate
-                        'media_xml' => 'Xml media', // @translate
+                        'media_extracted' => 'Tsv or Xml media if any', // @translate
                     ],
                 ],
                 'attributes' => [
@@ -136,6 +151,14 @@ class ConfigForm extends Form
             ]);
 
         $this->getInputFilter()
+            ->add([
+                'name' => 'extractocr_types_files',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'extractocr_types_media',
+                'required' => false,
+            ])
             ->add([
                 'name' => 'extractocr_content_store',
                 'required' => false,

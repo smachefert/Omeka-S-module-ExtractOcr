@@ -22,7 +22,6 @@ class Module extends AbstractModule
     public function install(ServiceLocatorInterface $services): void
     {
         $this->setServiceLocator($services);
-
         $t = $services->get('MvcTranslator');
 
         // Don't install if the pdftotext command doesn't exist.
@@ -33,24 +32,51 @@ class Module extends AbstractModule
             );
         }
 
-        $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-        if (!$this->checkDir($basePath . '/temp')) {
-            throw new ModuleCannotInstallException(
-                $t->translate('The temporary directory "files/temp" is not writeable. Fix rights or create it manually.') //@translate
+        $config = $services->get('Config');
+        $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+
+        if (!$this->checkDestinationDir($basePath . '/temp')) {
+            $message = new Message(
+                $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                $basePath . '/temp'
             );
+            throw new ModuleCannotInstallException($message);
+        }
+
+        if (!$this->checkDestinationDir($basePath . '/iiif-search')) {
+            $message = new Message(
+                $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                $basePath . '/iiif-search'
+                );
+            throw new ModuleCannotInstallException($message);
+        }
+
+        if (!$this->checkDestinationDir($basePath . '/alto')) {
+            $message = new Message(
+                $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                $basePath . '/alto'
+            );
+            throw new ModuleCannotInstallException($message);
+        }
+
+        if (!$this->checkDestinationDir($basePath . '/pdf2xml')) {
+            $message = new Message(
+                $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                $basePath . '/pdf2xml'
+            );
+            throw new ModuleCannotInstallException($message);
         }
 
         $isOldOmeka = version_compare(\Omeka\Module::VERSION, '3.1', '<');
-        $baseUri = $services->get('Config')['file_store']['local']['base_uri'];
+        $baseUri = $config['file_store']['local']['base_uri'];
         if (!$baseUri && $isOldOmeka) {
             $this->setServiceLocator($services);
             $baseUri = $this->getBaseUri();
-            throw new ModuleCannotInstallException(
-                sprintf(
-                    $t->translate('The base uri "%s" is not set in the config file of Omeka "config/local.config.php". It must be set for technical reasons for now.'), //@translate
-                    $baseUri
-                )
+            $message = new Message(
+                $t->translate('The base uri "%s" is not set in the config file of Omeka "config/local.config.php". It must be set for technical reasons for now.'), //@translate
+                $baseUri
             );
+            throw new ModuleCannotInstallException($message);
         }
 
         $settings = $services->get('Omeka\Settings');
@@ -59,6 +85,15 @@ class Module extends AbstractModule
         foreach ($config as $name => $value) {
             $settings->set($name, $value);
         }
+
+        $settings->set('extractocr_types_files', [
+            'text/tab-separated-values',
+            'application/alto+xml',
+        ]);
+
+        $settings->set('extractocr_content_store', [
+            'media_pdf',
+        ]);
 
         $this->allowFileFormats();
     }
@@ -93,6 +128,79 @@ class Module extends AbstractModule
             $settings->delete('extractocr_create_empty_xml');
             $message = new Message('A new option allows to export OCR into tsv format for quicker search results. Data should be reindexed with format TSV.'); // @translate
             $messenger->addSuccess($message);
+        }
+
+        if (version_compare((string) $oldVersion, '3.4.7', '<')) {
+            $this->setServiceLocator($services);
+            $t = $services->get('MvcTranslator');
+            $config = $services->get('Config');
+            $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+
+            if (!$this->checkDestinationDir($basePath . '/temp')) {
+                $message = new Message(
+                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $basePath . '/temp'
+                );
+                throw new ModuleCannotInstallException($message);
+            }
+
+            if (!$this->checkDestinationDir($basePath . '/iiif-search')) {
+                $message = new Message(
+                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $basePath . '/iiif-search'
+                );
+                throw new ModuleCannotInstallException($message);
+            }
+
+            if (!$this->checkDestinationDir($basePath . '/alto')) {
+                $message = new Message(
+                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $basePath . '/alto'
+                );
+                throw new ModuleCannotInstallException($message);
+            }
+
+            if (!$this->checkDestinationDir($basePath . '/pdf2xml')) {
+                $message = new Message(
+                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $basePath . '/pdf2xml'
+                );
+                throw new ModuleCannotInstallException($message);
+            }
+
+            $contentStore = $settings->get('extractocr_content_store', []);
+            $pos = array_search('media_xml', $contentStore);
+            if ($pos !== false) {
+                unset($contentStore[$pos]);
+                $contentStore[] = 'media_extracted';
+                $settings->set('extractocr_content_store', array_values($contentStore));
+            }
+
+            $settings->set('extractocr_create_media', true);
+            $message = new Message(
+                'A new option allows to store the file separately of the item. You can enable it by default.' // @translate
+            );
+            $messenger->addSuccess($message);
+
+            $extractMediaType = $settings->get('extractocr_media_type', 'text/tab-separated-values') ?: 'text/tab-separated-values';
+            $settings->set('extractocr_media_types', [$extractMediaType]);
+            $settings->delete('extractocr_media_type');
+
+            // The option is set true above during upgrade to keep old process.
+            $settings->set('extractocr_types_files', []);
+            $settings->set('extractocr_types_media', [$extractMediaType]);
+            $settings->delete('extractocr_media_types');
+            $settings->delete('extractocr_create_media');
+
+            $message = new Message(
+                'It is now possible to store multiple extracted files and medias, for example one for quick search and another one to display transcription.' // @translate
+            );
+            $messenger->addSuccess($message);
+
+            $message = new Message(
+                'In order to manage multiple derivative files and to avoid collisions with native files, the names of the file were updated. You should remove all existing created files (via search media by media type then delete) then recreate them all (via the job in config form).' // @translate
+            );
+            $messenger->addWarning($message);
         }
 
         $this->allowFileFormats();
@@ -189,7 +297,8 @@ class Module extends AbstractModule
         $data = $form->getData();
 
         $settings = $services->get('Omeka\Settings');
-        $settings->set('extractocr_media_type', $data['extractocr_media_type'] ?: 'text/tab-separated-values');
+        $settings->set('extractocr_types_files', $data['extractocr_types_files'] ?? []);
+        $settings->set('extractocr_types_media', $data['extractocr_types_media'] ?? []);
         $settings->set('extractocr_content_store', $data['extractocr_content_store']);
         $settings->set('extractocr_content_property', $data['extractocr_content_property']);
         $settings->set('extractocr_content_language', $data['extractocr_content_language']);
@@ -209,7 +318,7 @@ class Module extends AbstractModule
 
         $args = [];
         $args['mode'] = $params['mode'] ?? 'all';
-        $args['baseUri'] = $this->getBaseUri();
+        $args['base_uri'] = $this->getBaseUri();
         $args['item_ids'] = $params['item_ids'] ?? '';
 
         $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
@@ -242,14 +351,26 @@ class Module extends AbstractModule
      */
     public function extractOcr(Event $event): void
     {
+        $services = $this->getServiceLocator();
         $response = $event->getParams()['response'];
         /** @var \Omeka\Entity\Item $item */
         $item = $response->getContent();
 
-        $settings = $this->getServiceLocator()->get('Omeka\Settings');
-        $targetMediaType = $settings->get('extractocr_media_type') ?? 'text/tab-separated-values';
-        $targetExtension = $targetMediaType === 'text/tab-separated-values' ? '.tsv' : '.xml';
+        $extensions = [
+            \ExtractOcr\Job\ExtractOcr::FORMAT_ALTO => 'alto.xml',
+            \ExtractOcr\Job\ExtractOcr::FORMAT_PDF2XML => 'xml',
+            \ExtractOcr\Job\ExtractOcr::FORMAT_TSV => 'tsv',
+        ];
+        $settings = $services->get('Omeka\Settings');
+        $targetTypesFiles = $settings->get('extractocr_types_files') ?: [];
+        $targetTypesFiles = array_intersect($targetTypesFiles, array_flip($extensions));
+        $targetTypesMedia = $settings->get('extractocr_types_media') ?: [];
+        $targetTypesMedia = array_intersect($targetTypesMedia, array_flip($extensions));
+        if (!$targetTypesFiles && !$targetTypesMedia ) {
+            return;
+        }
 
+        // Get the pdf.
         $hasPdf = false;
         $targetFilename = null;
         /** @var \Omeka\Entity\Media $media */
@@ -258,55 +379,99 @@ class Module extends AbstractModule
             $extension = strtolower((string) $media->getExtension());
             if ($mediaType === 'application/pdf' && $extension === 'pdf') {
                 $hasPdf = true;
-                $source = (string) $media->getSource();
-                $filename = (string) parse_url($source, PHP_URL_PATH);
-                $targetFilename = strlen($filename)
-                    ? basename($filename, '.pdf')
-                    : $media->id() . '-' . $media->getStorageId();
-                $targetFilename .= $targetExtension;
                 break;
             }
         }
 
-        if (!$hasPdf || $targetFilename === '.tsv' || $targetFilename === '.xml') {
+        if (!$hasPdf) {
             return;
         }
 
-        // Don't override an already processed pdf when updating an item.
-        if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'tsv')) {
+        $source = (string) $media->getSource();
+        $filename = (string) parse_url($source, PHP_URL_PATH);
+        $targetFilenameNoExtension = strlen($filename)
+            ? basename($filename, '.pdf')
+            : $media->id() . '-' . $media->getStorageId();
+        if (!$targetFilename) {
             return;
         }
 
+        $suffixFilenames = [
+            'alto.xml' => '.alto',
+            'xml' => '',
+            'tsv' => '',
+        ];
+        $shortExtensions = [
+            'alto.xml' => 'xml',
+            'xml' => 'xml',
+            'tsv' => 'tsv',
+        ];
+        $dirPaths = [
+            'alto.xml' => 'alto',
+            'pdf2xml' => 'pdf2xml',
+            'tsv' => 'iiif-search',
+        ];
+
         // Don't override an already processed pdf when updating an item.
-        if ($this->getMediaFromFilename($item->getId(), $targetFilename, 'xml')) {
+        $existingFiles = array_fill_keys($targetTypesFiles, false);
+        if ($targetTypesFiles) {
+            $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+            foreach ($targetTypesFiles as $targetTypeFile) {
+                $targetExtension = $extensions[$targetTypeFile];
+                $targetDirPath = $dirPaths[$targetExtension];
+                $localSearchFilepath = $basePath . '/' . $targetDirPath . '/' . $item->id() . '.' . $targetExtension;
+                if (file_exists($localSearchFilepath)) {
+                    $existingFiles[$targetTypeFile] = true;
+                }
+            }
+        }
+        $existingMedias = array_fill_keys($targetTypesMedia, false);
+        if ($targetTypesMedia) {
+            foreach ($targetTypesMedia as $targetMediaType) {
+                $targetExtension = $extensions[$targetMediaType];
+                $targetFilename = $targetFilenameNoExtension . '.' . $targetExtension;
+                if ($this->getMediaFromFilename($item->getId(), $targetFilename . $suffixFilenames[$targetExtension], $shortExtensions[$targetExtension], $targetMediaType)) {
+                    $existingMedias[$targetMediaType] = true;
+                }
+            }
+        }
+
+        if (count(array_filter($existingFiles)) === count($existingFiles)
+            && count(array_filter($existingMedias)) === count($existingMedias)
+        ) {
             return;
         }
 
         $params = [
-            'mode' => 'missing',
-            'baseUri' => $this->getBaseUri(),
-            'itemId' => $item->getId(),
+            'mode' => 'all',
+            'base_uri' => $this->getBaseUri(),
+            'item_id' => $item->getId(),
             // FIXME Currently impossible to save text with event api.update.post;
             'manual' => true,
         ];
-        $this->getServiceLocator()->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
+        $services->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
 
-        $messenger = $this->getServiceLocator()->get('ControllerPluginManager')->get('messenger');
+        $messenger = $services->get('ControllerPluginManager')->get('messenger');
         $message = new Message('Extracting OCR in background.'); // @translate
         $messenger->addNotice($message);
     }
 
     /**
-     * Get a media from item id, source name and extension.
+     * Get the first media from item id, source name, extension and media type.
      *
      * @todo Improve search of ocr pdf2xml files.
+     *
+     * Copy:
+     * @see \ExtractOcr\Module::getMediaFromFilename()
+     * @see \ExtractOcr\Job\ExtractOcr::getMediaFromFilename()
      *
      * @param int $itemId
      * @param string $filename
      * @param string $extension
+     * @param string $mediaType
      * @return \Omeka\Api\Representation\MediaRepresentation|null
      */
-    protected function getMediaFromFilename($itemId, $filename, $extension)
+    protected function getMediaFromFilename($itemId, $filename, $extension, $mediaType)
     {
         $services = $this->getServiceLocator();
         $api = $services->get('Omeka\ApiManager');
@@ -317,6 +482,7 @@ class Module extends AbstractModule
                 'item' => $itemId,
                 'source' => $filename,
                 'extension' => $extension,
+                'mediaType' => $mediaType,
             ])->getContent();
         } catch (\Omeka\Api\Exception\NotFoundException $e) {
         }
@@ -353,19 +519,30 @@ class Module extends AbstractModule
     /**
      * Check or create the destination folder.
      *
-     * @param string $dirPath
-     * @return bool
+     * @param string $dirPath Absolute path.
+     * @return string|null
      */
-    protected function checkDir($dirPath)
+    protected function checkDestinationDir(string $dirPath): ?string
     {
-        if (!file_exists($dirPath)) {
-            if (!is_writeable(dirname($dirPath))) {
-                return false;
+        if (file_exists($dirPath)) {
+            if (!is_dir($dirPath) || !is_readable($dirPath) || !is_writeable($dirPath)) {
+                $this->getServiceLocator()->get('Omeka\Logger')->err(new Message(
+                    'The directory "%s" is not writeable.', // @translate
+                    $dirPath
+                ));
+                return null;
             }
-            @mkdir($dirPath, 0755, true);
-        } elseif (!is_dir($dirPath) || !is_writeable($dirPath)) {
-            return false;
+            return $dirPath;
         }
-        return true;
+
+        $result = @mkdir($dirPath, 0775, true);
+        if (!$result) {
+            $this->getServiceLocator()->get('Omeka\Logger')->err(new Message(
+                'The directory "%1$s" is not writeable: %2$s.', // @translate
+                $dirPath, error_get_last()['message']
+            ));
+            return null;
+        }
+        return $dirPath;
     }
 }

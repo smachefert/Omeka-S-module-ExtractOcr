@@ -20,8 +20,10 @@ return [
     ],
     'extractocr' => [
         'config' => [
-            'extractocr_media_type' => 'text/tab-separated-values',
             // Don't set a default option to avoid issue with config form.
+            // The option is set on install.
+            'extractocr_types_files' => [],
+            'extractocr_types_media' => [],
             'extractocr_content_store' => [],
             'extractocr_content_property' => 'bibo:content',
             'extractocr_content_language' => '',
