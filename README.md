@@ -1,17 +1,38 @@
-Extract OCR (plugin upgraded for Omeka S)
-=========================================
+Extract OCR (module for Omeka S) [archived, features moved to module IIIF Search]
+================================
+
+> **IMPORTANT**
+> This module is deprecated and replaced by the module [IIIF Search](https://github.com/bubdxm/Omeka-S-module-IiifSearch).
+> Install it for an automatic upgrade.
 
 
 Module for Omeka S to extract OCR text in XML and TSV from PDF files, allowing
-instant fulltext searching within any IIIF viewer like Universal Viewer or
-Mirador with [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch)).
+instant fulltext searching and highlighting within any IIIF viewer like
+Universal Viewer or Mirador with [IIIF-Search module](https://github.com/bubdxm/Omeka-S-module-IiifSearch)).
+
+For search, the tsv format (tab-separated values, a simpler variant of csv
+spreadsheets) is recommended because it is a lot quicker, in particular for items
+with many pages. The tsv format is a simple columns with the words and the list
+of positions by page. It allows to highlight search results in iiif viewers.
 
 The xml format is the simple [pdf2xml](https://poppler.freedesktop.org) or the
-most common standard [alto](https://www.loc.gov/standards/alto). The tsv format
-is a simple two columns with the words and the list of positions by page.
+most common standard [alto](https://www.loc.gov/standards/alto). It allows to
+display the transcription in IIIF viewers. It can be used for search and
+highlight too, but it is slower. The pdf2xml format is not a standard, but it
+allows smaller files and a slightly faster search, but a slighly less accurate
+display. For alto, it is a valid but basic alto that does not contains metadata
+about fonts or structure.
 
-The tsv format is recommended as it is a lot quicker, in particular for items
-with many pages.
+There are two tsv formats: the words can be stored globally, so the index is
+smaller and the search is quicker, or one by one, so an exact search can be done
+when there are multiple words and the search wrapped with `"`. The tsv format
+does not allows to display the transcription in IIIF viewers, but it allows to
+highlight results. The global index contains two columns: string and positions.
+The full index contains three columns: string, page, xywh (a list of four
+numbers for top left x and y, width and height, directly usable for iiif search).
+
+So generally, it is recommended to use formats "tsv" for search and "alto" for
+display.
 
 
 Installation
@@ -50,7 +71,7 @@ git clone git@github.com:bubdxm/Omeka-S-module-ExtractOcr.git "ExtractOcr"
 
 - Take care to rename the folder "ExtractOcr".
 - Install it from the admin → Modules → Extract Ocr -> install
-- Extract OCR automaticaly allows the upload of XML files.
+- Extract OCR automatically allows the upload of XML files.
 
 
 Using the Extract OCR module
@@ -84,7 +105,8 @@ TODO
 ----
 
 - [x] Extract strings with pdftotext with arg -tsv and store them in a file or in database for simpler and quicker search.
-- [ ] Extract strings by word, but with one position by row, allowing to search with "AND", not only "OR".
+- [x] Extract strings by word, but with one position by row, allowing to search with "AND", not only "OR".
+- [ ] Add a php format for quicker loading?
 
 
 Troubleshooting
@@ -117,4 +139,4 @@ Copyright
 ---------
 
 * Copyright Syvain Machefert, Université Bordeaux 3 (see [symac](https://github.com/symac))
-* Copyright Daniel Berthereau, 2020-2024 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)
+* Copyright Daniel Berthereau, 2020-2026 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)

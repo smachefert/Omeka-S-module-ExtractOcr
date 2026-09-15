@@ -7,8 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-02-26 00:00+0000"
-"MI+ZONE\n"
+"POT-Creation-Date: \n"
 "PO-Revision-Date: \n"
 "Last-Translator: Daniel Berthereau <Daniel.fr@Berthereau.net>\n"
 "Language-Team: \n"
@@ -16,419 +15,439 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 3.2.2\n"
+"X-Generator: Poedit 3.6\n"
 
-#: Module.php:31
+#: Module.php:41
 msgid ""
-"The pdftotext command-line utility is not installed. pdftotext must be "
-"installed to install this plugin."
+"The module Extract OCR has been merged into IIIF Search. Install module IIIF "
+"Search 3.4.15 or later instead."
 msgstr ""
-"L’utilitaire de ligne de commande pdftotext n'est pas installé. pdftotext "
-"doit être installé pour installer ce plugin."
+"Le module Extract OCR a été fusionné dans IIIF Search. Installer le module "
+"IIIF Search 3.4.15 ou suivant."
 
-#: Module.php:40 Module.php:48 Module.php:56 Module.php:64 Module.php:141
-#: Module.php:149 Module.php:157 Module.php:165
-#, php-format
-msgid ""
-"The directory \"%s\" is not writeable. Fix rights or create it manually."
+#: Module.php:83
+msgid "Module Extract OCR auto-uninstalled: features are now in IIIF Search."
 msgstr ""
-"Le dossier « %s » n’est pas accessible en écriture. Corrigez les droits ou "
-"créez le manuellement."
+"Module Extract OCR auto-désinstallé: les fonctionnalités ont été déplacées "
+"dans IIIF Search."
 
-#: Module.php:76
 #, php-format
-msgid ""
-"The base uri \"%s\" is not set in the config file of Omeka \"config/local."
-"config.php\". It must be set for technical reasons for now."
-msgstr ""
-"L’uri de base « %s » n’est pas définie dans le fichier de configuration "
-"d’Omeka « config/local.config.php ». Il doit être défini pour des raisons "
-"techniques pour l’instant."
+#~ msgid ""
+#~ "The directory \"%s\" is not writeable. Fix rights or create it manually."
+#~ msgstr ""
+#~ "Le dossier « %s » n’est pas accessible en écriture. Corrigez les droits "
+#~ "ou créez le manuellement."
 
-#: Module.php:274
-msgid "Options are used during edition of items and for bulk processing."
-msgstr ""
-"Les options sont utilisées lors de l’édition des contenus et pour le "
-"traitement en masse."
-
-#: Module.php:275
-msgid ""
-"The insertion of the text in the item properties is currently not supported."
-msgstr ""
-"L’insertion du texte dans les propriétés du contenu n’est actuellement pas "
-"prise en charge."
-
-#: Module.php:276
-msgid "XML files will be rebuilt for all PDF files of your Omeka install."
-msgstr ""
-"Les fichiers XML seront reconstruits pour tous les fichiers PDF de votre "
-"installation Omeka."
-
-#: Module.php:313
-msgid "Process"
-msgstr "Traitement"
-
-#: Module.php:510
-msgid ""
-"The base uri is not set (key [file_store][local][base_uri]) in the config "
-"file of Omeka \"config/local.config.php\". It must be set for now (key "
-"[file_store][local][base_uri]) in order to process background jobs."
-msgstr ""
-"L’uri de base n’est pas définie (clé [file_store][local][base_uri]) dans le "
-"fichier de configuration Omeka « config/local.config.php ». Il doit être "
-"indiqué (clé [file_store][local][base_uri]) de façon à gérer les tâches en "
-"arrière-plan."
-
-#: Module.php:120
-msgid "A new option allows to create xml as alto multi-pages."
-msgstr "Une nouvelle option permet de créer les xml en alto multi-pages."
-
-#: Module.php:129
-msgid ""
-"A new option allows to export OCR into tsv format for quicker search "
-"results. Data should be reindexed with format TSV."
-msgstr ""
-"Une nouvelle option permet d’exporter l’OCR dans un format tsv pour une "
-"recherche plus rapide. Les données doivent être réindexées avec le format "
-"TSV."
-
-#: Module.php:181
-msgid ""
-"A new option allows to store the file separately of the item. You can enable "
-"it by default."
-msgstr ""
-"Une nouvelle option permet d’enregistrer le fichier séparément du contenu. "
-"Vous pouvez l’activer par défaut."
-
-#: Module.php:196
-msgid ""
-"It is now possible to store multiple extracted files and medias, for example "
-"one for quick search and another one to display transcription."
-msgstr ""
-"Il est désormais possible d’enregistrer plusieurs fichiers et médias "
-"extraits, par exemple un pour la recherche rapide et un autre pour afficher "
-"les transcriptions."
-
-#: Module.php:201
-msgid ""
-"In order to manage multiple derivative files and to avoid collisions with "
-"native files, the names of the file were updated. You should remove all "
-"existing created files (via search media by media type then delete) then "
-"recreate them all (via the job in config form)."
-msgstr ""
-"De façon à gérer plusieurs fichiers dérivés et éviter les collisions avec "
-"les noms par défaut, les noms des fichiers ont été modifiés. Vous devez "
-"supprimer tous les fichiers créés auparavant (via la recherche des média par "
-"type de média) et les recréer ensuite (via la tâche dans la page de "
-"configuration)."
-
-#: Module.php:314
-msgid "No job launched."
-msgstr "Aucune tâche lancée."
-
-#: Module.php:328
 #, php-format
-msgid ""
-"Creating Extract OCR files in background (job %1$s#%2$s%3$s, %4$slogs%3$s)."
-msgstr ""
-"Création des fichiers d’extraction OCR en arrière-plan (tâche %1$s#%2$s%3$s, "
-"%4$sjournaux%3$s)."
+#~ msgid "The file \"%s\" cannot be renamed."
+#~ msgstr "Le dossier « %s » ne peut pas être renommé."
 
-#: Module.php:455
-msgid "Extracting OCR in background."
-msgstr "Extraction de l’OCR en arrière-plan."
-
-#: Module.php:530 src/Job/ExtractOcr.php:1206
 #, php-format
-msgid "The directory \"%s\" is not writeable."
-msgstr "Le dossier « %s » n’est pas inscriptible."
+#~ msgid ""
+#~ "The base uri \"%s\" is not set in the config file of Omeka \"config/"
+#~ "local.config.php\". It must be set for technical reasons for now."
+#~ msgstr ""
+#~ "L’uri de base « %s » n’est pas définie dans le fichier de configuration "
+#~ "d’Omeka « config/local.config.php ». Il doit être défini pour des raisons "
+#~ "techniques pour l’instant."
 
-#: Module.php:541 src/Job/ExtractOcr.php:1217
+#~ msgid "Options are used during edition of items and for bulk processing."
+#~ msgstr ""
+#~ "Les options sont utilisées lors de l’édition des contenus et pour le "
+#~ "traitement en masse."
+
+#~ msgid ""
+#~ "The insertion of the text in the item properties is currently not "
+#~ "supported."
+#~ msgstr ""
+#~ "L’insertion du texte dans les propriétés du contenu n’est actuellement "
+#~ "pas prise en charge."
+
+#~ msgid "XML files will be rebuilt for all PDF files of your Omeka install."
+#~ msgstr ""
+#~ "Les fichiers XML seront reconstruits pour tous les fichiers PDF de votre "
+#~ "installation Omeka."
+
+#~ msgid "Process"
+#~ msgstr "Traitement"
+
+#~ msgid ""
+#~ "The base uri is not set (key [file_store][local][base_uri]) in the config "
+#~ "file of Omeka \"config/local.config.php\". It must be set for now (key "
+#~ "[file_store][local][base_uri]) in order to process background jobs."
+#~ msgstr ""
+#~ "L’uri de base n’est pas définie (clé [file_store][local][base_uri]) dans "
+#~ "le fichier de configuration Omeka « config/local.config.php ». Il doit "
+#~ "être indiqué (clé [file_store][local][base_uri]) de façon à gérer les "
+#~ "tâches en arrière-plan."
+
+#~ msgid "A new option allows to create xml as alto multi-pages."
+#~ msgstr "Une nouvelle option permet de créer les xml en alto multi-pages."
+
+#~ msgid ""
+#~ "A new option allows to export OCR into tsv format for quicker search "
+#~ "results. Data should be reindexed with format TSV."
+#~ msgstr ""
+#~ "Une nouvelle option permet d’exporter l’OCR dans un format tsv pour une "
+#~ "recherche plus rapide. Les données doivent être réindexées avec le format "
+#~ "TSV."
+
+#~ msgid ""
+#~ "A new option allows to store the file separately of the item. You can "
+#~ "enable it by default."
+#~ msgstr ""
+#~ "Une nouvelle option permet d’enregistrer le fichier séparément du "
+#~ "contenu. Vous pouvez l’activer par défaut."
+
+#~ msgid ""
+#~ "It is now possible to store multiple extracted files and medias, for "
+#~ "example one for quick search and another one to display transcription."
+#~ msgstr ""
+#~ "Il est désormais possible d’enregistrer plusieurs fichiers et médias "
+#~ "extraits, par exemple un pour la recherche rapide et un autre pour "
+#~ "afficher les transcriptions."
+
+#~ msgid ""
+#~ "In order to manage multiple derivative files and to avoid collisions with "
+#~ "native files, the names of the file were updated. You should remove all "
+#~ "existing created files (via search media by media type then delete) then "
+#~ "recreate them all (via the job in config form)."
+#~ msgstr ""
+#~ "De façon à gérer plusieurs fichiers dérivés et éviter les collisions avec "
+#~ "les noms par défaut, les noms des fichiers ont été modifiés. Vous devez "
+#~ "supprimer tous les fichiers créés auparavant (via la recherche des média "
+#~ "par type de média) et les recréer ensuite (via la tâche dans la page de "
+#~ "configuration)."
+
+#~ msgid ""
+#~ "A new extract format was added as tsv to allow quick and exact search, "
+#~ "but with larger files."
+#~ msgstr ""
+#~ "Un nouveau format d’extraction a été ajouté en tsv pour permettre une "
+#~ "recherche rapide et exacte, mais avec des fichiers plus gros."
+
 #, php-format
-msgid "The directory \"%1$s\" is not writeable: %2$s."
-msgstr "Le dossier « %1$s » n’est pas accessible en écriture : %2$s."
+#~ msgid "You may update the settings in the %1$sconfig form%2$s."
+#~ msgstr ""
+#~ "Vous pouvez mettre à jour les paramètres dans le %1$sformulaire de "
+#~ "configuration%2$s."
 
-#: src/Job/ExtractOcr.php:130
-msgid ""
-"The temporary directory \"files/temp\" is not writeable. Fix rights or "
-"create it manually."
-msgstr ""
-"Le répertoire temporaire « files/temp » n’est pas accessible en écriture. "
-"Corrigez les droits ou créez le manuellement."
+#~ msgid ""
+#~ "The command-line utility pdftotext is not available. Install the package "
+#~ "poppler-utils."
+#~ msgstr ""
+#~ "L’utilitaire de ligne de commande pdftotext n'est pas disponible. Le "
+#~ "paquet poppler-utils doit être installé."
 
-#: src/Job/ExtractOcr.php:138
-msgid "The base uri is unknown."
-msgstr "L’uri de base est inconnue."
+#~ msgid ""
+#~ "The command-line utility pdftohtml is not available. Install the package "
+#~ "poppler-utils."
+#~ msgstr ""
+#~ "L’utilitaire de ligne de commande pdftohtml n'est pas disponible. Le "
+#~ "paquet poppler-utils doit être installé."
 
-#: src/Job/ExtractOcr.php:167
-msgid "No extract format to process."
-msgstr "Aucun format à traiter."
+#~ msgid "No job launched."
+#~ msgstr "Aucune tâche lancée."
 
-#: src/Job/ExtractOcr.php:177
-msgid ""
-"The php extension \"xml\" or \"xsl\" is required to extract text as xml alto."
-msgstr ""
-"L’extension php « xml » ou « xsl » est nécessaire pour extraire le texte au "
-"format xml alto."
-
-#: src/Job/ExtractOcr.php:225
-msgid "The option to store text is set, but no property is defined."
-msgstr ""
-"L’option de stockage du texte est activée, mais aucune propriété n'est "
-"définie."
-
-#: src/Job/ExtractOcr.php:291
-msgid "No item with a pdf to process."
-msgstr "Aucun contenu avec un pdf à traiter."
-
-#: src/Job/ExtractOcr.php:297
 #, php-format
-msgid "Formats of xml files to create: %s."
-msgstr "Formats des fichiers xml à créer : %s."
+#~ msgid ""
+#~ "Creating Extract OCR files in background (job %1$s#%2$s%3$s, "
+#~ "%4$slogs%3$s)."
+#~ msgstr ""
+#~ "Création des fichiers d’extraction OCR en arrière-plan (tâche "
+#~ "%1$s#%2$s%3$s, %4$sjournaux%3$s)."
 
-#: src/Job/ExtractOcr.php:303
+#~ msgid "Extracting OCR in background."
+#~ msgstr "Extraction de l’OCR en arrière-plan."
+
 #, php-format
-msgid "Creating Extract OCR files for %d PDF only if they already exist."
-msgstr "Création des fichiers OCR pour %d PDF, seulement s’ils existent déjà."
+#~ msgid "The directory \"%s\" is not writeable."
+#~ msgstr "Le dossier « %s » n’est pas inscriptible."
 
-#: src/Job/ExtractOcr.php:308
 #, php-format
-msgid "Creating Extract OCR files for %d PDF, only if they do not exist yet."
-msgstr "Création des fichiers OCR pour %d PDF, seulement s’ils n’existent pas."
+#~ msgid "The directory \"%1$s\" is not writeable: %2$s."
+#~ msgstr "Le dossier « %1$s » n’est pas accessible en écriture : %2$s."
 
-#: src/Job/ExtractOcr.php:313
+#~ msgid "Extract OCR: Extract ocr from files"
+#~ msgstr "Extract OCR : extraire l’ocr des fichierse"
+
+#~ msgid "Options to extract OCR"
+#~ msgstr "Options pour extraire l’ocr"
+
+#~ msgid "Extract OCR job"
+#~ msgstr "Tâche d’extraction OCR"
+
+#~ msgid "Only already extracted (improve extraction)"
+#~ msgstr "Seulement les contenus déjà extraits (améliore l’extraction)"
+
+#~ msgid "Only missing extracted medias"
+#~ msgstr "Seulement les médias non extraits"
+
+#~ msgid "All medias"
+#~ msgstr "Tous les médias"
+
+#~ msgid "Item ids"
+#~ msgstr "Identifiants des contenus"
+
+#~ msgid ""
+#~ "The temporary directory \"files/temp\" is not writeable. Fix rights or "
+#~ "create it manually."
+#~ msgstr ""
+#~ "Le répertoire temporaire « files/temp » n’est pas accessible en écriture. "
+#~ "Corrigez les droits ou créez le manuellement."
+
+#~ msgid "The base uri is unknown."
+#~ msgstr "L’uri de base est inconnue."
+
+#~ msgid "No extract format to process."
+#~ msgstr "Aucun format à traiter."
+
+#~ msgid ""
+#~ "The php extension \"xml\" or \"xsl\" is required to extract text as xml "
+#~ "alto."
+#~ msgstr ""
+#~ "L’extension php « xml » ou « xsl » est nécessaire pour extraire le texte "
+#~ "au format xml alto."
+
+#~ msgid "The directory is not writeable."
+#~ msgstr "Le dossier ne peut pas être écrit."
+
+#~ msgid "The option to store text is set, but no property is defined."
+#~ msgstr ""
+#~ "L’option de stockage du texte est activée, mais aucune propriété n'est "
+#~ "définie."
+
+#~ msgid "No item with a pdf to process."
+#~ msgstr "Aucun contenu avec un pdf à traiter."
+
 #, php-format
-msgid ""
-"Creating Extract OCR files for %d PDF, xml files will be overridden or "
-"created."
-msgstr ""
-"Création de fichiers OCR pour %d PDF, les fichiers xml seront remplacés ou "
-"créés."
+#~ msgid "Formats of xml files to create: %s."
+#~ msgstr "Formats des fichiers xml à créer : %s."
 
-#: src/Job/ExtractOcr.php:319
 #, php-format
-msgid "Mode of extraction \"%s\" is not managed."
-msgstr "Le mode d’extraction « %s » n’est pas géré."
+#~ msgid "Creating Extract OCR files for %d PDF only if they already exist."
+#~ msgstr ""
+#~ "Création des fichiers OCR pour %d PDF, seulement s’ils existent déjà."
 
-#: src/Job/ExtractOcr.php:350
 #, php-format
-msgid "Processing format %1$d/%2$d: %3$s (%4$s)."
-msgstr "Traitement du format %1$d/%2$d: %3$s (%4$s)."
+#~ msgid ""
+#~ "Creating Extract OCR files for %d PDF, only if they do not exist yet."
+#~ msgstr ""
+#~ "Création des fichiers OCR pour %d PDF, seulement s’ils n’existent pas."
 
-#: src/Job/ExtractOcr.php:370
-msgid "End of processing formats."
-msgstr "Fin du traitement des formats."
-
-#: src/Job/ExtractOcr.php:405
 #, php-format
-msgid ""
-"The job \"Extract OCR\" was stopped: %1$d/%2$d resources processed, %3$d "
-"failed (%4$d without file, %5$d without text layer, %6$d with issue)."
-msgstr ""
-"La tâche « Extraction OCR » a été arrêtée : %1$d/%2$d ressources traitées, "
-"%3$d échecs (%4$d sans fichier, %5$d sans couche de texte, %6$d avec "
-"problème)."
+#~ msgid ""
+#~ "Creating Extract OCR files for %d PDF, xml files will be overridden or "
+#~ "created."
+#~ msgstr ""
+#~ "Création de fichiers OCR pour %d PDF, les fichiers xml seront remplacés "
+#~ "ou créés."
 
-#: src/Job/ExtractOcr.php:410
 #, php-format
-msgid ""
-"The job \"Extract OCR\" was stopped: %1$d/%2$d resources processed, %3$d "
-"skipped, %4$d failed (%5$d without file, %6$d without text layer, %7$d with "
-"issue)."
-msgstr ""
-"La tâche « Extraction OCR » a été arrêtée : %1$d/%2$d ressources traitées, "
-"%3$d ignorées, %4$d échouées (%5$d sans fichier, %6$d sans couche de texte, "
-"%7$d avec problème)."
+#~ msgid "Mode of extraction \"%s\" is not managed."
+#~ msgstr "Le mode d’extraction « %s » n’est pas géré."
 
-#: src/Job/ExtractOcr.php:426
 #, php-format
-msgid "Item #%d: only the first pdf is processed."
-msgstr "Contenu #%d : seul le premier pdf est traité."
+#~ msgid "Processing format %1$d/%2$d: %3$s (%4$s)."
+#~ msgstr "Traitement du format %1$d/%2$d: %3$s (%4$s)."
 
-#: src/Job/ExtractOcr.php:448
+#~ msgid "End of processing formats."
+#~ msgstr "Fin du traitement des formats."
+
 #, php-format
-msgid "Index #%1$d/%2$d: Extracting OCR for item #%3$d, media #%4$d \"%5$s\"."
-msgstr ""
-"Index #%1$d/%2$d : Extraction de l’OCR pour le contenu #%3$d, média #%4$d "
-"« %5$s »."
+#~ msgid ""
+#~ "The job \"Extract OCR\" was stopped: %1$d/%2$d resources processed, %3$d "
+#~ "failed (%4$d without file, %5$d without text layer, %6$d with issue)."
+#~ msgstr ""
+#~ "La tâche « Extraction OCR » a été arrêtée : %1$d/%2$d ressources "
+#~ "traitées, %3$d échecs (%4$d sans fichier, %5$d sans couche de texte, %6$d "
+#~ "avec problème)."
 
-#: src/Job/ExtractOcr.php:456 src/Job/ExtractOcr.php:467
 #, php-format
-msgid "The existing %1$s was removed for item #%2$d."
-msgstr "Le fichier %1$s existant a été supprimé pour le contenu #%2$d."
+#~ msgid ""
+#~ "The job \"Extract OCR\" was stopped: %1$d/%2$d resources processed, %3$d "
+#~ "skipped, %4$d failed (%5$d without file, %6$d without text layer, %7$d "
+#~ "with issue)."
+#~ msgstr ""
+#~ "La tâche « Extraction OCR » a été arrêtée : %1$d/%2$d ressources "
+#~ "traitées, %3$d ignorées, %4$d échouées (%5$d sans fichier, %6$d sans "
+#~ "couche de texte, %7$d avec problème)."
 
-#: src/Job/ExtractOcr.php:484
 #, php-format
-msgid "A file %1$s already exists, so item #%2$d is skipped."
-msgstr "Un fichier %1$s existe déjà. Le contenu #%2$d est ignoré."
+#~ msgid "Item #%d: only the first pdf is processed."
+#~ msgstr "Contenu #%d : seul le premier pdf est traité."
 
-#: src/Job/ExtractOcr.php:491
 #, php-format
-msgid "A file %1$s (media #%2$d) already exists, so item #%3$d is skipped."
-msgstr ""
-"Un fichier %1$s (média #%2$d) existe déjà. Le contenu #%3$d est ignoré."
+#~ msgid ""
+#~ "Index #%1$d/%2$d: Extracting OCR for item #%3$d, media #%4$d \"%5$s\"."
+#~ msgstr ""
+#~ "Index #%1$d/%2$d : Extraction de l’OCR pour le contenu #%3$d, média #%4$d "
+#~ "« %5$s »."
 
-#: src/Job/ExtractOcr.php:513
 #, php-format
-msgid "The output %1$s for pdf #%2$d has no text content and is not created."
-msgstr ""
-"Le sortie %1$s pour le pdf #%2$d n'a pas de contenu textuel et n’a pas été "
-"créé."
+#~ msgid "The existing %1$s was removed for item #%2$d."
+#~ msgstr "Le fichier %1$s existant a été supprimé pour le contenu #%2$d."
 
-#: src/Job/ExtractOcr.php:520
 #, php-format
-msgid "Media #%1$d (item #%2$d) created for %3$s file."
-msgstr "Média #%1$d (contenu #%2$d) créé pour le fichier %3$s."
+#~ msgid "A file %1$s already exists, so item #%2$d is skipped."
+#~ msgstr "Un fichier %1$s existe déjà. Le contenu #%2$d est ignoré."
 
-#: src/Job/ExtractOcr.php:529
 #, php-format
-msgid "IIIF Search file created for item #%1$d created for %2$s file."
-msgstr ""
-"Fichier de recherche IIIF créé pour le contenu #%1$d créé pour %2$s fichier."
+#~ msgid "A file %1$s (media #%2$d) already exists, so item #%3$d is skipped."
+#~ msgstr ""
+#~ "Un fichier %1$s (média #%2$d) existe déjà. Le contenu #%3$d est ignoré."
 
-#: src/Job/ExtractOcr.php:534
 #, php-format
-msgid ""
-"Unable to store the IIIF Search file for item #%1$d created for %2$s file."
-msgstr ""
-"Impossible d’enregistrer le fichier de recherche IIIF pour le contenu #%1$d "
-"créé pour %2$s fichier."
+#~ msgid ""
+#~ "The output %1$s for pdf #%2$d has no text content and is not created."
+#~ msgstr ""
+#~ "Le sortie %1$s pour le pdf #%2$d n'a pas de contenu textuel et n’a pas "
+#~ "été créé."
 
-#: src/Job/ExtractOcr.php:565
 #, php-format
-msgid "These medias have no pdf file: #%s"
-msgstr "Ces médias n'ont pas de fichier pdf : #%s"
+#~ msgid "Media #%1$d (item #%2$d) created for %3$s file."
+#~ msgstr "Média #%1$d (contenu #%2$d) créé pour le fichier %3$s."
 
-#: src/Job/ExtractOcr.php:573
 #, php-format
-msgid "These pdf files have no text layer: #%s"
-msgstr "Ces fichiers pdf n’ont pas de couche de texte : #%s"
+#~ msgid "IIIF Search file for item #%1$d created for format %2$s."
+#~ msgstr ""
+#~ "Fichier pour la recherche IIIF du contenu #%1$d créé pour le format %2$s."
 
-#: src/Job/ExtractOcr.php:581
 #, php-format
-msgid "These pdf files have issues when extracting content: #%s"
-msgstr ""
-"Ces fichiers pdf ont eu des problèmes lors de l'extraction du contenu : #%s"
+#~ msgid "Unable to store the IIIF Search file for item #%1$d for format %2$s."
+#~ msgstr ""
+#~ "Impossible d’enregistrer le fichier de recherche IIIF pour le contenu "
+#~ "#%1$d pour le format %2$s."
 
-#: src/Job/ExtractOcr.php:589
 #, php-format
-msgid ""
-"Processed %1$d/%2$d pdf files, %3$d files %4$s created, %5$d failed (%6$d "
-"without file, %7$d without text layer, %8$d with issue)."
-msgstr ""
-"Traitement de %1$d/%2$d fichiers pdf, %3$d fichiers %4$s créés, %5$d échoués "
-"(%6$d sans fichier, %7$d sans couche de texte, %8$d avec problème)."
+#~ msgid "These medias have no pdf file: #%s"
+#~ msgstr "Ces médias n'ont pas de fichier pdf : #%s"
 
-#: src/Job/ExtractOcr.php:594
 #, php-format
-msgid ""
-"Processed %1$d/%2$d pdf files, %3$d skipped, %4$d files %5$s, created, %6$d "
-"failed (%7$d without file, %8$d without text layer, %9$d with issue)."
-msgstr ""
-"Traitement de %1$d/%2$d fichiers pdf, %3$d ignorés, %4$d fichiers %5$s "
-"créés, %6$d échoués (%7$d sans fichier, %8$d sans texte, %9$d avec problème)."
+#~ msgid "These pdf files have no text layer: #%s"
+#~ msgstr "Ces fichiers pdf n’ont pas de couche de texte : #%s"
 
-#: src/Job/ExtractOcr.php:641
 #, php-format
-msgid "Missing pdf file (media #%1$d)."
-msgstr "Fichier pdf manquant (média #%1$d)."
+#~ msgid "These pdf files have issues when extracting content: #%s"
+#~ msgstr ""
+#~ "Ces fichiers pdf ont eu des problèmes lors de l'extraction du contenu : "
+#~ "#%s"
 
-#: src/Job/ExtractOcr.php:664
 #, php-format
-msgid "File %1$s was not created for media #%2$s."
-msgstr "Le fichier %1$s n’a pas été créé pour le média #%2$s."
+#~ msgid ""
+#~ "Processed %1$d/%2$d pdf files, %3$d files %4$s created, %5$d failed (%6$d "
+#~ "without file, %7$d without text layer, %8$d with issue)."
+#~ msgstr ""
+#~ "Traitement de %1$d/%2$d fichiers pdf, %3$d fichiers %4$s créés, %5$d "
+#~ "échoués (%6$d sans fichier, %7$d sans couche de texte, %8$d avec "
+#~ "problème)."
 
-#: src/Job/ExtractOcr.php:1176
 #, php-format
-msgid ""
-"File cannot be saved in temporary directory \"%1$s\" (temp file: \"%2$s\")"
-msgstr ""
-"Le fichier ne peut pas être enregistré dans le dossier temporaire "
-"« %1$s » (fichier : « %2$s »)"
+#~ msgid ""
+#~ "Processed %1$d/%2$d pdf files, %3$d skipped, %4$d files %5$s, created, "
+#~ "%6$d failed (%7$d without file, %8$d without text layer, %9$d with issue)."
+#~ msgstr ""
+#~ "Traitement de %1$d/%2$d fichiers pdf, %3$d ignorés, %4$d fichiers %5$s "
+#~ "créés, %6$d échoués (%7$d sans fichier, %8$d sans texte, %9$d avec "
+#~ "problème)."
 
-#: src/Form/ConfigForm.php:24
-msgid "Create file for formats"
-msgstr "Créer des fichiers pour les formats"
+#, php-format
+#~ msgid "Missing pdf file (media #%1$d)."
+#~ msgstr "Fichier pdf manquant (média #%1$d)."
 
-#: src/Form/ConfigForm.php:39
-msgid "Create media for formats"
-msgstr "Créer des médias pour les formats"
+#, php-format
+#~ msgid "File %1$s was not created for media #%2$s."
+#~ msgstr "Le fichier %1$s n’a pas été créé pour le média #%2$s."
 
-#: src/Form/ConfigForm.php:54
-msgid "Store the raw text in a property of a resource"
-msgstr "Stocker le texte brut dans une propriété d’une ressource"
+#, php-format
+#~ msgid ""
+#~ "File cannot be saved in temporary directory \"%1$s\" (temp file: \"%2$s\")"
+#~ msgstr ""
+#~ "Le fichier ne peut pas être enregistré dans le dossier temporaire "
+#~ "« %1$s » (fichier : « %2$s »)"
 
-#: src/Form/ConfigForm.php:55
-msgid "Text cannot be stored in item when an item is manually edited."
-msgstr ""
-"Le texte ne peut pas être stocké dans l’élément lorsqu’un élément est édité "
-"manuellement."
+#~ msgid "Create file for formats"
+#~ msgstr "Créer des fichiers pour les formats"
 
-#: src/Form/ConfigForm.php:59
-msgid "Pdf media"
-msgstr "Médias Pdf"
+#~ msgid "For more info on formats, see readme."
+#~ msgstr "Pour plus d’info sur les formats, consultez le lisez-moi."
 
-#: src/Form/ConfigForm.php:60
-msgid "Tsv or Xml media if any"
-msgstr "Média Tsv ou Xml si présent"
+#~ msgid ""
+#~ "tsv with original order of words (quick and exact search for iiif search)"
+#~ msgstr ""
+#~ "tsv avec l’ordre original des mots (recherche rapide et exacte pour "
+#~ "recherche iiif)"
 
-#: src/Form/ConfigForm.php:71
-msgid "Property to save pdf raw text"
-msgstr "Propriété où enregistrer le texte brut du pdf"
+#~ msgid "tsv grouped by word (very quick search for iiif search, small index)"
+#~ msgstr ""
+#~ "tsv par mot groupé (recherche très rapide pour recherche iiif, index "
+#~ "léger)"
 
-#: src/Form/ConfigForm.php:72
-msgid ""
-"To save content makes it searchable anywhere. It is recommended to use "
-"\"bibo:content\". Note that it will increase the noise in the results, "
-"unless you use a search engine."
-msgstr ""
-"L’enregistrement d’un contenu le rend consultable partout. Il est recommandé "
-"d’utiliser « bibo:content ». Notez que cela augmentera le bruit dans les "
-"résultats, à moins que vous n’utilisiez un moteur de recherche."
+#~ msgid "xml alto (slow search, ocr transcription for iiif server)"
+#~ msgstr "xml alto (recheche lente, ocr transcription pour serveur iiif)"
 
-#: src/Form/ConfigForm.php:79
-msgid "Select a media property…"
-msgstr "Sélectionner une propriété du média…"
+#~ msgid "pdf2xml"
+#~ msgstr "pdf2xml"
 
-#: src/Form/ConfigForm.php:86
-msgid "Language code of the content"
-msgstr "Code langue du contenu"
+#~ msgid "Create media for formats"
+#~ msgstr "Créer des médias pour les formats"
 
-#: src/Form/ConfigForm.php:96
-msgid "Create xml file even if there is no text content"
-msgstr "Créer un fichier xml même s’il n'y a pas de contenu textuel"
+#~ msgid "tsv with original order of words"
+#~ msgstr "tsv avec ordre original des mots"
 
-#: src/Form/ConfigForm.php:97
-msgid ""
-"This option may be useful to keep the same order and number of pages and "
-"extracted texts."
-msgstr ""
-"Cette option peut être utile pour conserver le même ordre et le même nombre "
-"de pages et de textes extraits."
+#~ msgid "tsv grouped by word"
+#~ msgstr "tsv par mot groupé"
 
-#: src/Form/ConfigForm.php:108 src/Form/ConfigForm.php:118
-msgid "Extract OCR job"
-msgstr "Tâche d’extraction OCR"
+#~ msgid "xml alto"
+#~ msgstr "xml alto"
 
-#: src/Form/ConfigForm.php:120
-msgid "Only already extracted (improve extraction)"
-msgstr "Seulement les contenus déjà extraits (améliore l’extraction)"
+#~ msgid "Store the raw text in a property of a resource"
+#~ msgstr "Stocker le texte brut dans une propriété d’une ressource"
 
-#: src/Form/ConfigForm.php:121
-msgid "Only missing extracted medias"
-msgstr "Seulement les médias non extraits"
+#~ msgid "Text cannot be stored in item when an item is manually edited."
+#~ msgstr ""
+#~ "Le texte ne peut pas être stocké dans l’élément lorsqu’un élément est "
+#~ "édité manuellement."
 
-#: src/Form/ConfigForm.php:122
-msgid "All medias"
-msgstr "Tous les médias"
+#~ msgid "Pdf media"
+#~ msgstr "Médias Pdf"
 
-#: src/Form/ConfigForm.php:134
-msgid "Item ids"
-msgstr "Identifiants des contenus"
+#~ msgid "Tsv or Xml media if any"
+#~ msgstr "Média Tsv ou Xml si présent"
 
-#: src/Form/ConfigForm.php:145
-msgid "Run in background"
-msgstr "Lancer en arrière-plan"
+#~ msgid "Property to save pdf raw text (not recommended)"
+#~ msgstr "Propriété où enregistrer le texte brut (non recommandé)"
+
+#~ msgid ""
+#~ "To save content makes it searchable anywhere. It is recommended to use "
+#~ "\"bibo:content\". Note that it will increase the noise in the results, "
+#~ "unless you use a search engine. Furthermore, this option is not "
+#~ "recommended when the text is too much big."
+#~ msgstr ""
+#~ "L’enregistrement d’un contenu le rend cherchable partout. Il est "
+#~ "recommandé d’utiliser « bibo:content ». Notez que cela augmentera le "
+#~ "bruit dans les résultats, à moins que vous n’utilisiez un moteur de "
+#~ "recherche. De plus, cette option n’est pas recommandé quand le texte est "
+#~ "trop grand."
+
+#~ msgid "Select a media property…"
+#~ msgstr "Sélectionner une propriété du média…"
+
+#~ msgid "Language code of the content"
+#~ msgstr "Code langue du contenu"
+
+#~ msgid "Create xml file even if there is no text content"
+#~ msgstr "Créer un fichier xml même s’il n'y a pas de contenu textuel"
+
+#~ msgid ""
+#~ "This option may be useful to keep the same order and number of pages and "
+#~ "extracted texts."
+#~ msgstr ""
+#~ "Cette option peut être utile pour conserver le même ordre et le même "
+#~ "nombre de pages et de textes extraits."
+
+#~ msgid "Run in background"
+#~ msgstr "Lancer en arrière-plan"
 
 #~ msgid "Create a media with the extracted content and attach it to the item"
 #~ msgstr "Créer un média avec le contenu extrait et l’attacher au contenu"
